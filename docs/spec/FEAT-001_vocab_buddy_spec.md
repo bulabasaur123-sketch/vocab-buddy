@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Smart Reading Vocabulary & Spaced Repetition Companion"
 type: prd_and_spec
 feature_code: FEAT-001
-status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: ready_to_ship # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: human # gemini | codex | human
 created_at: 2026-10-31
 updated_at: 2026-10-31
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-10-31
 # Feature Specification: Vocab Buddy Core Backend & Enrichment Engine
 
 > **Feature Code:** FEAT-001  
-> **Active Stage:** Frontend Integrated; Ready for Stage 4 Codex Verification  
+> **Active Stage:** Ready to Ship (All 4 Stages Complete & Verified)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Review Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
