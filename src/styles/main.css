@@ -1030,6 +1030,23 @@ kbd {
 }
 
 @media (max-width: 640px) {
+  .site-wrapper {
+    padding: 1rem 0.85rem 2rem 0.85rem;
+  }
+  .masthead {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  .masthead-left {
+    justify-content: space-between;
+  }
+  .masthead-nav {
+    justify-content: center;
+  }
+  .masthead-right {
+    justify-content: flex-end;
+  }
   .entry-form {
     flex-direction: column;
     align-items: stretch;
@@ -1040,5 +1057,16 @@ kbd {
   .lexicon-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+  .search-wrap {
+    max-width: 100%;
+  }
+  .filter-wrap {
+    justify-content: space-between;
+  }
+  .colophon {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
   }
 }

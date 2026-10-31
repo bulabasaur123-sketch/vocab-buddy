@@ -438,7 +438,7 @@ el.modalDeleteBtn.addEventListener('click', async () => {
 // ==========================================================================
 async function startReviewSession() {
   const dueQueue = await fetchDueQueue();
-  state.deckQueue = dueQueue.length > 0 ? dueQueue : state.words.slice(0, 10);
+  state.deckQueue = dueQueue;
   state.deckIndex = 0;
   state.isFlipped = false;
 
@@ -446,7 +446,7 @@ async function startReviewSession() {
     el.indexCard.parentElement.classList.add('hidden');
     el.reviewActions.classList.add('hidden');
     el.deckComplete.classList.remove('hidden');
-    el.completeSummary.textContent = 'Your lexicon has no words yet. Record a word from your reading first.';
+    el.completeSummary.textContent = 'All scheduled reviews are complete. No cards currently due for review.';
     return;
   }
 
@@ -534,22 +534,34 @@ el.reviewActions.querySelectorAll('.btn-rate').forEach(btn => {
 });
 
 async function submitRating(rating) {
-  const current = state.deckQueue[state.deckIndex];
-  if (!current) return;
+  if (state.isSubmittingRating) return;
+  state.isSubmittingRating = true;
+  try {
+    const current = state.deckQueue[state.deckIndex];
+    if (!current) return;
 
-  if (window.vocabAPI && window.vocabAPI.reviewWord) {
-    await window.vocabAPI.reviewWord(current.id, rating);
+    if (window.vocabAPI && window.vocabAPI.reviewWord) {
+      await window.vocabAPI.reviewWord(current.id, rating);
+    }
+
+    state.deckIndex++;
+    showDeckCard();
+    await refreshAll();
+  } finally {
+    state.isSubmittingRating = false;
   }
-
-  state.deckIndex++;
-  showDeckCard();
-  await refreshAll();
 }
 
 // ==========================================================================
 // Keyboard Navigation
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
+  // If an input or editable field is active, do not intercept typing
+  const tag = e.target && e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+    return;
+  }
+
   if (!el.detailModal.classList.contains('hidden')) {
     if (e.key === 'Escape') el.detailModal.classList.add('hidden');
     return;
@@ -581,13 +593,17 @@ function switchView(viewName) {
     el.navLexiconBtn.classList.add('active');
     el.navReviewBtn.classList.remove('active');
     el.viewLexicon.classList.add('active');
+    el.viewLexicon.classList.remove('hidden');
     el.viewReview.classList.remove('active');
+    el.viewReview.classList.add('hidden');
     renderLexicon();
   } else if (viewName === 'review') {
     el.navReviewBtn.classList.add('active');
     el.navLexiconBtn.classList.remove('active');
     el.viewReview.classList.add('active');
+    el.viewReview.classList.remove('hidden');
     el.viewLexicon.classList.remove('active');
+    el.viewLexicon.classList.add('hidden');
     startReviewSession();
   }
 }
