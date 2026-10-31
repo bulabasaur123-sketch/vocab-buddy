@@ -39,3 +39,13 @@ Every feature must progress through the 4-stage pipeline sequentially:
 2. **Atomic Commits Before Handoff:** Always stage and commit your work cleanly before changing the stage status and handing off to the next agent.
 3. **Single Source of Truth:** Specifications live in `docs/` and Obsidian. Divergences must be documented in the spec before changing code.
 4. **Autonomous Worktree Isolation:** When executing headless or background tasks with Codex CLI, run inside isolated Git worktrees (`.worktrees/codex-<slug>`).
+
+<!-- antislop:start -->
+## 4. Antislop Design Protocol
+For all Stage 3 UI, styling, and copy generation, enforce the antislop filter:
+- Design Direction: [DESIGN.md](file:///home/zeto/Desktop/projects/Vocab%20Buddy/DESIGN.md)
+- Core Filter: `/home/zeto/.gemini/config/plugins/antislop/skills/antislop/SKILL.md`
+- UI & Visual: `/home/zeto/.gemini/config/plugins/antislop/skills/antislop-ui/SKILL.md`
+- Copy & Prose: `/home/zeto/.gemini/config/plugins/antislop/skills/antislop-copywriting/SKILL.md`
+- Human Accessibility: `/home/zeto/.gemini/config/plugins/antislop/skills/antislop-human/SKILL.md`
+<!-- antislop:end -->
