@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' https: http:; img-src 'self' data: https:; script-src 'self';">
+  <title>Vocab Buddy — Personal Lexicon</title>
+  
+  <!-- Typography: Editorial Serif (Newsreader), Grotesque Sans (Inter), Technical Monospace (JetBrains Mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body class="theme-paper">
+  <div class="site-wrapper">
+
+    <!-- Masthead -->
+    <header class="masthead">
+      <div class="masthead-left">
+        <span class="masthead-title">Vocab Buddy</span>
+        <span class="masthead-divider">/</span>
+        <span class="masthead-tagline">Personal Reading Lexicon</span>
+      </div>
+
+      <nav class="masthead-nav">
+        <button id="nav-lexicon-btn" class="nav-link active" type="button">
+          Lexicon
+          <span id="nav-count-lexicon" class="counter-badge">0</span>
+        </button>
+        <button id="nav-review-btn" class="nav-link" type="button">
+          Review Deck
+          <span id="nav-count-due" class="counter-badge alert">0</span>
+        </button>
+      </nav>
+
+      <div class="masthead-right">
+        <button id="btn-theme-toggle" class="btn-subtle" type="button" title="Toggle light/dark theme">
+          <span class="theme-label-light">Midnight</span>
+          <span class="theme-label-dark">Daylight</span>
+        </button>
+        <button id="btn-export" class="btn-subtle" type="button" title="Export library as JSON file">
+          Export
+        </button>
+      </div>
+    </header>
+
+    <!-- Reader's Entry Bar -->
+    <section class="entry-strip">
+      <form id="entry-form" class="entry-form">
+        <div class="field-cluster">
+          <label for="input-word" class="field-label">Word</label>
+          <input 
+            type="text" 
+            id="input-word" 
+            class="entry-input word-input" 
+            placeholder="e.g. petrichor, ephemeral, serendipity" 
+            required 
+            autocomplete="off" 
+            autofocus
+          >
+        </div>
+
+        <div class="field-cluster source-cluster">
+          <label for="input-source" class="field-label">Source Citation (Optional)</label>
+          <input 
+            type="text" 
+            id="input-source" 
+            class="entry-input source-input" 
+            placeholder="e.g. Dune, Chapter 3" 
+            autocomplete="off"
+          >
+        </div>
+
+        <button type="submit" id="btn-submit" class="btn-record">
+          <span class="btn-text">Record Word</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
+      </form>
+      <div id="entry-feedback" class="entry-feedback hidden"></div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main class="content-body">
+
+      <!-- VIEW 1: Lexicon (Library) -->
+      <section id="view-lexicon" class="view-panel active">
+        
+        <div class="lexicon-controls">
+          <div class="search-wrap">
+            <input 
+              type="search" 
+              id="search-input" 
+              class="search-input" 
+              placeholder="Search words, definitions, or citations..." 
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="filter-wrap">
+            <label for="filter-status" class="filter-label">Filter:</label>
+            <select id="filter-status" class="filter-select">
+              <option value="all">Entire Collection</option>
+              <option value="due">Due for Review</option>
+              <option value="learning">In Learning (Boxes 1–4)</option>
+              <option value="mastered">Mastered (Box 5)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Lexicon Cards Grid -->
+        <div id="lexicon-grid" class="lexicon-grid">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="lexicon-empty" class="empty-notice hidden">
+          <p class="empty-heading">Lexicon is currently empty.</p>
+          <p class="empty-sub">Enter any word encountered while reading above to log definitions, origin notes, and pronunciation.</p>
+        </div>
+
+      </section>
+
+      <!-- VIEW 2: Review Deck (Spaced Repetition Flashcards) -->
+      <section id="view-review" class="view-panel hidden">
+        <div class="deck-stage">
+          
+          <div class="deck-header">
+            <div class="deck-tally-wrap">
+              <span class="deck-heading">Review Session</span>
+              <span id="deck-progress-text" class="deck-step">Card 1 of 5</span>
+            </div>
+            <div class="deck-progress-track">
+              <div id="deck-progress-bar" class="deck-progress-fill" style="width: 20%;"></div>
+            </div>
+          </div>
+
+          <!-- Physical Index Card -->
+          <div class="index-card-wrapper">
+            <div id="index-card" class="index-card" tabindex="0" role="button" aria-label="Vocabulary index card. Click or press space to flip.">
+              
+              <!-- Front Side -->
+              <div class="card-side card-front">
+                <div class="card-meta-top">
+                  <span id="card-front-box" class="card-box-stamp">Box 1</span>
+                  <span id="card-front-source" class="card-source-stamp"></span>
+                </div>
+
+                <div class="card-front-body">
+                  <h2 id="card-front-word" class="card-title-serif">Serendipity</h2>
+                  <div class="card-phonetic-row">
+                    <span id="card-front-phonetic" class="phonetic-mono">/ˌsɛ.ɹən.ˈdɪ.pɪ.ti/</span>
+                    <button type="button" id="card-front-audio" class="btn-icon-audio" title="Listen to pronunciation">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="card-footer-hint">
+                  <span>Press <kbd>Space</kbd> or click card to reveal definitions</span>
+                </div>
+              </div>
+
+              <!-- Back Side -->
+              <div class="card-side card-back">
+                <div class="card-meta-top">
+                  <div class="back-title-group">
+                    <span id="card-back-word" class="back-word-serif">Serendipity</span>
+                    <span id="card-back-phonetic" class="phonetic-mono back-phonetic">/ˌsɛ.ɹən.ˈdɪ.pɪ.ti/</span>
+                  </div>
+                  <button type="button" id="card-back-audio" class="btn-icon-audio" title="Listen to pronunciation">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="card-back-body">
+                  <!-- Etymology Note -->
+                  <div class="etymology-block">
+                    <span class="block-label">Origin & Etymology</span>
+                    <p id="card-back-etymology" class="etymology-prose"></p>
+                  </div>
+
+                  <!-- Definitions -->
+                  <div class="definitions-block">
+                    <span class="block-label">Definitions & Citations</span>
+                    <div id="card-back-definitions" class="definitions-list"></div>
+                  </div>
+                </div>
+
+                <div class="card-footer-hint">
+                  <span>Rate recall below to schedule next interval</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Review Rating Bar -->
+          <div id="review-actions" class="review-actions">
+            <button type="button" class="btn-rate btn-rate-again" data-rating="again">
+              <span class="rate-num">1</span>
+              <span class="rate-name">Again</span>
+              <span class="rate-interval">1 day</span>
+            </button>
+            <button type="button" class="btn-rate btn-rate-hard" data-rating="hard">
+              <span class="rate-num">2</span>
+              <span class="rate-name">Hard</span>
+              <span class="rate-interval">Repeat soon</span>
+            </button>
+            <button type="button" class="btn-rate btn-rate-good" data-rating="good">
+              <span class="rate-num">3</span>
+              <span class="rate-name">Good</span>
+              <span class="rate-interval">Advance</span>
+            </button>
+            <button type="button" class="btn-rate btn-rate-easy" data-rating="easy">
+              <span class="rate-num">4</span>
+              <span class="rate-name">Easy</span>
+              <span class="rate-interval">Mastery</span>
+            </button>
+          </div>
+
+          <!-- Session Completed Screen -->
+          <div id="deck-complete" class="deck-complete-card hidden">
+            <h3 class="complete-title">Session Complete</h3>
+            <p id="complete-summary" class="complete-text">All scheduled reviews have been completed for today.</p>
+            <button type="button" id="btn-return-lexicon" class="btn-subtle" style="margin-top: 1.25rem;">
+              Return to Lexicon
+            </button>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Reader's Colophon / Footer -->
+    <footer class="colophon">
+      <div class="colophon-left">
+        <span id="colophon-tally">0 entries in personal lexicon · 0 due for review</span>
+      </div>
+      <div class="colophon-right">
+        <span>Curated for Book Readers</span>
+      </div>
+    </footer>
+
+    <!-- Word Detail Modal -->
+    <div id="detail-modal" class="modal-scrim hidden" role="dialog" aria-modal="true">
+      <div class="modal-folio">
+        
+        <div class="modal-folio-header">
+          <div>
+            <div class="modal-heading-row">
+              <h2 id="modal-word" class="modal-title-serif">Serendipity</h2>
+              <span id="modal-phonetic" class="phonetic-mono">/ˌsɛ.ɹən.ˈdɪ.pɪ.ti/</span>
+              <button type="button" id="modal-audio-btn" class="btn-icon-audio" title="Listen">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+              </button>
+            </div>
+            <p id="modal-source" class="modal-source-text"></p>
+          </div>
+          <button type="button" id="modal-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <div class="modal-folio-body">
+          <div class="folio-section">
+            <h4 class="folio-subheading">Origin & Etymological Roots</h4>
+            <div id="modal-etymology" class="folio-etymology-prose"></div>
+          </div>
+
+          <div class="folio-section">
+            <h4 class="folio-subheading">Definitions & Contextual Usage</h4>
+            <div id="modal-meanings" class="folio-meanings-list"></div>
+          </div>
+
+          <div class="folio-section" id="modal-synonyms-section">
+            <h4 class="folio-subheading">Related Terms</h4>
+            <div id="modal-synonyms" class="chip-row"></div>
+          </div>
+        </div>
+
+        <div class="modal-folio-footer">
+          <div class="folio-status-stamp">
+            <span id="modal-box-stamp" class="status-stamp">Box 1</span>
+            <span id="modal-schedule-stamp" class="schedule-stamp">Next review: Today</span>
+          </div>
+          <button type="button" id="modal-delete-btn" class="btn-delete">
+            Remove from Lexicon
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="src/renderer.js"></script>
+</body>
+</html>
