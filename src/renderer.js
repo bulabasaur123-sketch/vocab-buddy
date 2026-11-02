@@ -27,6 +27,7 @@ const el = {
   navCountLexicon: document.getElementById('nav-count-lexicon'),
   navCountDue: document.getElementById('nav-count-due'),
   btnThemeToggle: document.getElementById('btn-theme-toggle'),
+  btnCadenceGuide: document.getElementById('btn-cadence-guide'),
   btnExport: document.getElementById('btn-export'),
 
   // Entry Strip
@@ -55,9 +56,11 @@ const el = {
   cardFrontBox: document.getElementById('card-front-box'),
   cardFrontSource: document.getElementById('card-front-source'),
   cardFrontWord: document.getElementById('card-front-word'),
+  cardFrontInflected: document.getElementById('card-front-inflected'),
   cardFrontPhonetic: document.getElementById('card-front-phonetic'),
   cardFrontAudio: document.getElementById('card-front-audio'),
   cardBackWord: document.getElementById('card-back-word'),
+  cardBackInflected: document.getElementById('card-back-inflected'),
   cardBackPhonetic: document.getElementById('card-back-phonetic'),
   cardBackAudio: document.getElementById('card-back-audio'),
   cardBackEtymology: document.getElementById('card-back-etymology'),
@@ -73,6 +76,7 @@ const el = {
   // Detail Modal
   detailModal: document.getElementById('detail-modal'),
   modalWord: document.getElementById('modal-word'),
+  modalInflected: document.getElementById('modal-inflected'),
   modalPhonetic: document.getElementById('modal-phonetic'),
   modalAudioBtn: document.getElementById('modal-audio-btn'),
   modalSource: document.getElementById('modal-source'),
@@ -83,8 +87,26 @@ const el = {
   modalSynonyms: document.getElementById('modal-synonyms'),
   modalBoxStamp: document.getElementById('modal-box-stamp'),
   modalScheduleStamp: document.getElementById('modal-schedule-stamp'),
-  modalDeleteBtn: document.getElementById('modal-delete-btn')
+  modalDeleteBtn: document.getElementById('modal-delete-btn'),
+
+  // Cadence Guide Modal
+  cadenceModal: document.getElementById('cadence-modal'),
+  cadenceModalClose: document.getElementById('cadence-modal-close'),
+  cadenceBtnDismiss: document.getElementById('cadence-btn-dismiss')
 };
+
+// Box Cadence Helper
+const BOX_CADENCE_LABELS = {
+  1: 'Daily',
+  2: '3 Days',
+  3: 'Weekly',
+  4: 'Fortnightly',
+  5: 'Mastered'
+};
+
+function getBoxLabel(box) {
+  return BOX_CADENCE_LABELS[box] || 'Daily';
+}
 
 // ==========================================================================
 // Theme Management
@@ -111,9 +133,9 @@ el.btnThemeToggle.addEventListener('click', () => {
 });
 
 // ==========================================================================
-// Audio Playback
+// Audio Playback (Local Lightweight Cache First -> Web URL -> Speech)
 // ==========================================================================
-function playAudio(audioUrl, wordText, buttonEl) {
+async function playAudio(audioUrl, wordText, buttonEl) {
   if (state.activeAudio) {
     state.activeAudio.pause();
     state.activeAudio = null;
@@ -125,15 +147,40 @@ function playAudio(audioUrl, wordText, buttonEl) {
     if (buttonEl) buttonEl.classList.remove('playing');
   };
 
-  if (audioUrl && audioUrl.startsWith('http')) {
-    const audio = new Audio(audioUrl);
-    state.activeAudio = audio;
-    audio.play()
-      .then(() => { audio.onended = onEnd; })
-      .catch(() => { fallbackSpeech(wordText, onEnd); });
-  } else {
-    fallbackSpeech(wordText, onEnd);
+  // 1. Try local cached lightweight audio from backend IPC
+  try {
+    if (window.vocabAPI && window.vocabAPI.getAudioDataUrl && wordText) {
+      const dataUrl = await window.vocabAPI.getAudioDataUrl(wordText);
+      if (dataUrl) {
+        const audio = new Audio(dataUrl);
+        state.activeAudio = audio;
+        audio.onended = onEnd;
+        audio.onerror = () => fallbackSpeech(wordText, onEnd);
+        await audio.play();
+        return;
+      }
+    }
+  } catch (err) {
+    console.debug('Local audio cache retrieval failed, checking remote URL:', err);
   }
+
+  // 2. Try remote audio URL
+  if (audioUrl && audioUrl.startsWith('http')) {
+    try {
+      const audio = new Audio(audioUrl);
+      state.activeAudio = audio;
+      audio.onended = onEnd;
+      audio.onerror = () => fallbackSpeech(wordText, onEnd);
+      await audio.play();
+      return;
+    } catch {
+      fallbackSpeech(wordText, onEnd);
+      return;
+    }
+  }
+
+  // 3. Fallback to Browser Speech Synthesis
+  fallbackSpeech(wordText, onEnd);
 }
 
 function fallbackSpeech(wordText, callback) {
@@ -257,12 +304,14 @@ function renderLexicon() {
 
   const filtered = state.words.filter(w => {
     if (query) {
-      const matchWord = w.word.toLowerCase().includes(query);
+      const matchWord = (w.word || '').toLowerCase().includes(query);
+      const matchDisplay = (w.displayWord || '').toLowerCase().includes(query);
+      const matchInflected = (w.inflectedForm || '').toLowerCase().includes(query);
       const matchSource = (w.bookSource || '').toLowerCase().includes(query);
       const matchDef = (w.meanings || []).some(m =>
         (m.definitions || []).some(d => (d.definition || '').toLowerCase().includes(query))
       );
-      if (!matchWord && !matchSource && !matchDef) return false;
+      if (!matchWord && !matchDisplay && !matchInflected && !matchSource && !matchDef) return false;
     }
 
     const box = w.review?.box || 1;
@@ -294,20 +343,24 @@ function renderLexicon() {
     const def = firstMeaning.definitions?.[0]?.definition || '';
     const example = firstMeaning.definitions?.[0]?.example || '';
     const box = word.review?.box || 1;
+    const boxLabel = word.review?.boxLabel || getBoxLabel(box);
     const isMastered = box >= 5;
+    const isInflected = word.inflectedForm && word.inflectedForm.toLowerCase() !== word.word.toLowerCase();
 
     card.innerHTML = `
       <div class="card-mast">
         <h3 class="card-title-serif">${escapeHtml(word.displayWord)}</h3>
         <div class="card-meta-stamps">
           ${pos ? `<span class="pos-stamp">${escapeHtml(pos)}</span>` : ''}
-          <span class="box-stamp ${isMastered ? 'mastered' : ''}">Box ${box}</span>
+          <button type="button" class="box-stamp btn-stamp-trigger ${isMastered ? 'mastered' : ''}" title="View Leitner cadence guide">Box ${box} · ${escapeHtml(boxLabel)}</button>
         </div>
       </div>
 
+      ${isInflected ? `<p class="card-inflected-cite">Encountered as: <em>${escapeHtml(word.inflectedForm)}</em></p>` : ''}
+
       <div class="phonetic-row">
         <span class="phonetic-mono">${escapeHtml(word.phonetic || '')}</span>
-        <button type="button" class="btn-icon-audio btn-card-audio" title="Listen">
+        <button type="button" class="btn-icon-audio btn-card-audio" title="Listen to pronunciation">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -324,6 +377,15 @@ function renderLexicon() {
         <span>${formatNextReview(word.review?.nextReviewDate)}</span>
       </div>
     `;
+
+    // Box cadence stamp trigger
+    const stampBtn = card.querySelector('.btn-stamp-trigger');
+    if (stampBtn) {
+      stampBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openCadenceModal();
+      });
+    }
 
     // Audio button click
     const audioBtn = card.querySelector('.btn-card-audio');
@@ -400,12 +462,26 @@ function openDetailModal(word) {
     el.modalSynonymsSection.classList.add('hidden');
   }
 
+  // Inflected reading citation
+  if (word.inflectedForm && word.inflectedForm.toLowerCase() !== word.word.toLowerCase()) {
+    el.modalInflected.innerHTML = `Encountered in reading as: <em>${escapeHtml(word.inflectedForm)}</em>`;
+    el.modalInflected.classList.remove('hidden');
+  } else {
+    el.modalInflected.classList.add('hidden');
+    el.modalInflected.textContent = '';
+  }
+
   const box = word.review?.box || 1;
-  el.modalBoxStamp.textContent = `Box ${box}${box >= 5 ? ' (Mastered)' : ''}`;
+  const boxLabel = word.review?.boxLabel || getBoxLabel(box);
+  el.modalBoxStamp.textContent = `Box ${box} · ${boxLabel}`;
   el.modalScheduleStamp.textContent = formatNextReview(word.review?.nextReviewDate);
 
   el.detailModal.classList.remove('hidden');
 }
+
+el.modalBoxStamp.addEventListener('click', () => {
+  openCadenceModal();
+});
 
 el.modalClose.addEventListener('click', () => {
   el.detailModal.classList.add('hidden');
@@ -477,11 +553,27 @@ function showDeckCard() {
   el.deckProgressText.textContent = `Card ${step} of ${total}`;
   el.deckProgressBar.style.width = `${Math.round((step / total) * 100)}%`;
 
+  const box = current.review?.box || 1;
+  const boxLabel = current.review?.boxLabel || getBoxLabel(box);
+
   // Front
-  el.cardFrontBox.textContent = `Box ${current.review?.box || 1}`;
+  el.cardFrontBox.textContent = `Box ${box} · ${boxLabel}`;
+  el.cardFrontBox.title = 'Click to view Leitner memory cadence guide';
   el.cardFrontSource.textContent = current.bookSource ? `Ref: ${current.bookSource}` : '';
   el.cardFrontWord.textContent = current.displayWord;
   el.cardFrontPhonetic.textContent = current.phonetic || '';
+
+  // Inflected Form Citation
+  const isInflected = current.inflectedForm && current.inflectedForm.toLowerCase() !== current.word.toLowerCase();
+  if (isInflected) {
+    el.cardFrontInflected.innerHTML = `Encountered as: <em>${escapeHtml(current.inflectedForm)}</em>`;
+    el.cardFrontInflected.classList.remove('hidden');
+    el.cardBackInflected.innerHTML = `Encountered as: <em>${escapeHtml(current.inflectedForm)}</em>`;
+    el.cardBackInflected.classList.remove('hidden');
+  } else {
+    el.cardFrontInflected.classList.add('hidden');
+    el.cardBackInflected.classList.add('hidden');
+  }
 
   // Back
   el.cardBackWord.textContent = current.displayWord;
@@ -505,6 +597,11 @@ function showDeckCard() {
     });
   }
 }
+
+el.cardFrontBox.addEventListener('click', (e) => {
+  e.stopPropagation();
+  openCadenceModal();
+});
 
 function flipCard() {
   state.isFlipped = !state.isFlipped;
@@ -562,6 +659,11 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
+  if (el.cadenceModal && !el.cadenceModal.classList.contains('hidden')) {
+    if (e.key === 'Escape') closeCadenceModal();
+    return;
+  }
+
   if (!el.detailModal.classList.contains('hidden')) {
     if (e.key === 'Escape') el.detailModal.classList.add('hidden');
     return;
@@ -579,6 +681,26 @@ window.addEventListener('keydown', (e) => {
     }
   }
 });
+
+// ==========================================================================
+// Cadence Guide Modal Controller
+// ==========================================================================
+function openCadenceModal() {
+  if (el.cadenceModal) el.cadenceModal.classList.remove('hidden');
+}
+
+function closeCadenceModal() {
+  if (el.cadenceModal) el.cadenceModal.classList.add('hidden');
+}
+
+if (el.btnCadenceGuide) el.btnCadenceGuide.addEventListener('click', openCadenceModal);
+if (el.cadenceModalClose) el.cadenceModalClose.addEventListener('click', closeCadenceModal);
+if (el.cadenceBtnDismiss) el.cadenceBtnDismiss.addEventListener('click', closeCadenceModal);
+if (el.cadenceModal) {
+  el.cadenceModal.addEventListener('click', (e) => {
+    if (e.target === el.cadenceModal) closeCadenceModal();
+  });
+}
 
 // ==========================================================================
 // View Switching

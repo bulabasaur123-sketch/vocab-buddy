@@ -36,6 +36,9 @@
       </nav>
 
       <div class="masthead-right">
+        <button id="btn-cadence-guide" class="btn-subtle" type="button" title="View Leitner memory cadence guide">
+          Cadence Guide
+        </button>
         <button id="btn-theme-toggle" class="btn-subtle" type="button" title="Toggle light/dark theme">
           <span class="theme-label-light">Midnight</span>
           <span class="theme-label-dark">Daylight</span>
@@ -149,6 +152,7 @@
 
                 <div class="card-front-body">
                   <h2 id="card-front-word" class="card-title-serif">Serendipity</h2>
+                  <p id="card-front-inflected" class="deck-inflected-cite hidden"></p>
                   <div class="card-phonetic-row">
                     <span id="card-front-phonetic" class="phonetic-mono">/ˌsɛ.ɹən.ˈdɪ.pɪ.ti/</span>
                     <button type="button" id="card-front-audio" class="btn-icon-audio" title="Listen to pronunciation">
@@ -171,6 +175,7 @@
                   <div class="back-title-group">
                     <span id="card-back-word" class="back-word-serif">Serendipity</span>
                     <span id="card-back-phonetic" class="phonetic-mono back-phonetic">/ˌsɛ.ɹən.ˈdɪ.pɪ.ti/</span>
+                    <p id="card-back-inflected" class="deck-inflected-cite hidden"></p>
                   </div>
                   <button type="button" id="card-back-audio" class="btn-icon-audio" title="Listen to pronunciation">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -266,6 +271,7 @@
                 </svg>
               </button>
             </div>
+            <p id="modal-inflected" class="modal-inflected-cite hidden"></p>
             <p id="modal-source" class="modal-source-text"></p>
           </div>
           <button type="button" id="modal-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
@@ -290,12 +296,106 @@
 
         <div class="modal-folio-footer">
           <div class="folio-status-stamp">
-            <span id="modal-box-stamp" class="status-stamp">Box 1</span>
+            <button type="button" id="modal-box-stamp" class="status-stamp btn-stamp-trigger" title="View Leitner memory cadence guide">Box 1 · Daily</button>
             <span id="modal-schedule-stamp" class="schedule-stamp">Next review: Today</span>
           </div>
           <button type="button" id="modal-delete-btn" class="btn-delete">
             Remove from Lexicon
           </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Leitner Cadence Guide Modal -->
+    <div id="cadence-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="cadence-modal-title">
+      <div class="modal-folio cadence-folio">
+        
+        <div class="modal-folio-header">
+          <div>
+            <div class="modal-heading-row">
+              <h2 id="cadence-modal-title" class="modal-title-serif">Leitner Retention Cadence</h2>
+              <span class="phonetic-mono">Spaced Repetition Protocol</span>
+            </div>
+            <p class="modal-source-text">How vocabulary slips graduate from first encounter to permanent reading fluency.</p>
+          </div>
+          <button type="button" id="cadence-modal-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <div class="modal-folio-body">
+          <div class="folio-section">
+            <h4 class="folio-subheading">The Five Memory Tiers</h4>
+            <div class="cadence-ladder">
+              
+              <div class="cadence-step">
+                <div class="cadence-step-header">
+                  <span class="box-stamp">Box 1 · Daily</span>
+                  <span class="cadence-interval">Interval: 1 Day</span>
+                </div>
+                <p class="cadence-step-desc">Newly logged slips. Reviewed daily until initial recall and orthography stabilize.</p>
+              </div>
+
+              <div class="cadence-step">
+                <div class="cadence-step-header">
+                  <span class="box-stamp">Box 2 · 3 Days</span>
+                  <span class="cadence-interval">Interval: 3 Days</span>
+                </div>
+                <p class="cadence-step-desc">Early consolidation. Verifies retention after immediate short-term memory decays.</p>
+              </div>
+
+              <div class="cadence-step">
+                <div class="cadence-step-header">
+                  <span class="box-stamp">Box 3 · Weekly</span>
+                  <span class="cadence-interval">Interval: 7 Days</span>
+                </div>
+                <p class="cadence-step-desc">Intermediate recall. Tests recognition across varied reading sessions and contexts.</p>
+              </div>
+
+              <div class="cadence-step">
+                <div class="cadence-step-header">
+                  <span class="box-stamp">Box 4 · Fortnightly</span>
+                  <span class="cadence-interval">Interval: 14 Days</span>
+                </div>
+                <p class="cadence-step-desc">Long-range retention. Confirms deep familiarization before advancing to final graduation.</p>
+              </div>
+
+              <div class="cadence-step">
+                <div class="cadence-step-header">
+                  <span class="box-stamp mastered">Box 5 · Mastered</span>
+                  <span class="cadence-interval">Interval: 30 Days</span>
+                </div>
+                <p class="cadence-step-desc">Permanent reading vocabulary. Fully incorporated into long-term comprehension with light monthly maintenance.</p>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="folio-section">
+            <h4 class="folio-subheading">Review Grading & Ladder Rules</h4>
+            <div class="cadence-grading-grid">
+              <div class="cadence-grading-card">
+                <span class="cadence-key"><kbd>1</kbd> Again</span>
+                <span class="cadence-impact">Resets slip back to Box 1 (1 day)</span>
+              </div>
+              <div class="cadence-grading-card">
+                <span class="cadence-key"><kbd>2</kbd> Hard</span>
+                <span class="cadence-impact">Retains current interval for prompt re-test</span>
+              </div>
+              <div class="cadence-grading-card">
+                <span class="cadence-key"><kbd>3</kbd> Good</span>
+                <span class="cadence-impact">Advances slip +1 Box up the memory ladder</span>
+              </div>
+              <div class="cadence-grading-card">
+                <span class="cadence-key"><kbd>4</kbd> Easy</span>
+                <span class="cadence-impact">Accelerates slip +2 Boxes toward Mastery</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-folio-footer">
+          <span class="cadence-footer-note">Shortcut: Press <kbd>Space</kbd> during review sessions to flip the vocabulary slip.</span>
+          <button type="button" id="cadence-btn-dismiss" class="btn-subtle">Close Guide</button>
         </div>
 
       </div>

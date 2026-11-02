@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Root Lemmatization, Lightweight Audio & Leitner Context"
 type: prd_and_spec
 feature_code: FEAT-002
-status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-02
 updated_at: 2026-11-02
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-02
 # Feature Specification: FEAT-002 Root Lemmatization, Lightweight Audio & Leitner Context
 
 > **Feature Code:** FEAT-002  
-> **Active Stage:** Backend Complete — Ready for Frontend (Stage 3)  
+> **Active Stage:** Frontend Integrated — Ready for Stage 4 Code Review & Security Gate  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Review Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -230,3 +230,27 @@ And intervalDays is set to 30
   live audio playback remains part of frontend integration verification.
 - Gemini owns the next stage: canonical titles, encountered-form subtitles,
   cadence badges/guide, and cached audio playback.
+
+---
+
+## 6. Stage 3 Frontend Integration (Gemini Complete)
+
+- [x] **Encountered Form Display:** Cards in the lexicon grid, review front/back faces, and detail modal display the subtle citation `Encountered as: <inflectedForm>` when an inflected word was logged.
+- [x] **Lightweight Audio Cache Playback:** `playAudio` queries `window.vocabAPI.getAudioDataUrl(wordText)` via IPC before falling back to remote URLs or speech synthesis.
+- [x] **Leitner Cadence Context & Labels:** Box stamps across the application display the cadence interval (`Box 1 · Daily`, `Box 2 · 3 Days`, `Box 3 · Weekly`, `Box 4 · Fortnightly`, `Box 5 · Mastered`).
+- [x] **Cadence Guide Modal:** Implemented editorial modal dialog explaining all 5 memory tiers, interval durations, and keyboard rating impact (`1: Again`, `2: Hard`, `3: Good`, `4: Easy`). Accessible via masthead button `#btn-cadence-guide` or by clicking any box badge stamp.
+- [x] **Inflected Word Search:** Searching an inflected form like `stymied` matches the canonical root card `Stymie`.
+- [x] **Editorial Antislop Design:** Ink & Paper styling maintained with zero flashy neon gradients or marketing copy.
+
+---
+
+## 7. Stage 4 Handoff Checklist (Gemini -> Codex)
+
+- [ ] Security audit: verify base64 audio data URL handling, IPC validation, and path traversal safety on cache.
+- [ ] Code review: inspect frontend and backend diffs for edge cases, performance, or memory leaks.
+- [ ] Verification suite: execute `npm test`, `npm run lint`, and `npm run build`.
+- [ ] Update status to `ready_to_ship`.
+
+**Handoff Command for Developer:**
+> Prompt Codex: *"Codex, please conduct the Stage 4 Security Review, Quality Audit, and Full Verification for FEAT-002 per `docs/spec/FEAT-002_root_lemmatization_audio_leitner_spec.md`."*
+

@@ -456,16 +456,73 @@ body.theme-dark .theme-label-dark { display: inline; }
 .box-stamp {
   font-family: var(--font-mono);
   font-size: 0.675rem;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: var(--radius-xs);
   background: var(--stamp-box-bg);
   color: var(--stamp-box-text);
+  white-space: nowrap;
 }
 
 .box-stamp.mastered {
   background: var(--stamp-mastered-bg);
   color: var(--stamp-mastered-text);
   font-weight: 500;
+}
+
+.btn-stamp-trigger {
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-stamp-trigger:hover {
+  border-color: var(--border-focus);
+  filter: brightness(0.96);
+}
+
+.card-inflected-cite {
+  font-family: var(--font-serif);
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: -0.2rem;
+  margin-bottom: 0.45rem;
+  line-height: 1.35;
+}
+
+.card-inflected-cite em {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-style: normal;
+}
+
+.deck-inflected-cite {
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.deck-inflected-cite em {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-style: normal;
+}
+
+.modal-inflected-cite {
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 0.25rem;
+}
+
+.modal-inflected-cite em {
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-style: normal;
 }
 
 .phonetic-row {
@@ -491,15 +548,27 @@ body.theme-dark .theme-label-dark { display: inline; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
-.btn-icon-audio:hover {
+.btn-icon-audio:hover:not([disabled]) {
   color: var(--text-accent);
+}
+
+.btn-icon-audio[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .btn-icon-audio.playing {
   color: var(--accent-fill);
+  animation: audioPulse 1s ease-in-out infinite;
+}
+
+@keyframes audioPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }
 
 .card-definition {
@@ -1029,6 +1098,106 @@ kbd {
   display: none !important;
 }
 
+/* 10. Leitner Cadence Guide Modal */
+.cadence-folio {
+  max-width: 680px;
+}
+
+.cadence-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cadence-step {
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-rule);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  transition: border-color var(--transition-fast);
+}
+
+.cadence-step:hover {
+  border-color: var(--border-focus);
+}
+
+.cadence-step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cadence-interval {
+  font-family: var(--font-mono);
+  font-size: 0.725rem;
+  color: var(--text-muted);
+}
+
+.cadence-step-desc {
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.cadence-grading-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+
+.cadence-grading-card {
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-rule);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cadence-key {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cadence-key kbd {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.cadence-impact {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.cadence-footer-note {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+}
+
+.cadence-footer-note kbd {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-rule);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.725rem;
+}
+
 @media (max-width: 640px) {
   .site-wrapper {
     padding: 1rem 0.85rem 2rem 0.85rem;
@@ -1068,5 +1237,8 @@ kbd {
     flex-direction: column;
     gap: 0.5rem;
     align-items: flex-start;
+  }
+  .cadence-grading-grid {
+    grid-template-columns: 1fr;
   }
 }
