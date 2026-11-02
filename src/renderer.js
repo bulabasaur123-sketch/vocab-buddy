@@ -394,15 +394,12 @@ function renderLexicon() {
     card.innerHTML = `
       <div class="card-mast">
         <h3 class="card-title-serif">${escapeHtml(word.displayWord)}</h3>
-        <div class="card-meta-stamps">
-          ${pos ? `<span class="pos-stamp">${escapeHtml(pos)}</span>` : ''}
-          <button type="button" class="box-stamp btn-stamp-trigger ${isMastered ? 'mastered' : ''}" title="View Leitner cadence guide">Box ${box} · ${escapeHtml(boxLabel)}</button>
-        </div>
+        <button type="button" class="box-stamp btn-stamp-trigger ${isMastered ? 'mastered' : ''}" title="View Leitner cadence guide">Box ${box} · ${escapeHtml(boxLabel)}</button>
       </div>
 
-      ${isInflected ? `<p class="card-inflected-cite">Encountered as: <em>${escapeHtml(word.inflectedForm)}</em></p>` : ''}
-
       <div class="phonetic-row">
+        ${pos ? `<span class="pos-stamp">${escapeHtml(pos)}</span>` : ''}
+        ${pos && word.phonetic ? `<span class="pos-divider" aria-hidden="true">·</span>` : ''}
         <span class="phonetic-mono">${escapeHtml(word.phonetic || '')}</span>
         <button type="button" class="btn-icon-audio btn-card-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen to pronunciation' : 'No audio recording archived'}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -411,6 +408,8 @@ function renderLexicon() {
           </svg>
         </button>
       </div>
+
+      ${isInflected ? `<p class="card-inflected-cite">Encountered as: <em>${escapeHtml(word.inflectedForm)}</em></p>` : ''}
 
       <p class="card-definition">${escapeHtml(def)}</p>
 
