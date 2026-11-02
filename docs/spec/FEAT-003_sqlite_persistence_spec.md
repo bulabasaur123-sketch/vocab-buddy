@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS words (
   box INTEGER NOT NULL DEFAULT 1,
   box_label TEXT NOT NULL DEFAULT 'Daily',
   next_review_date TEXT NOT NULL,
+  next_review_at INTEGER NOT NULL,
   review_count INTEGER NOT NULL DEFAULT 0,
   streak INTEGER NOT NULL DEFAULT 0,
   last_rating TEXT,
@@ -73,6 +74,12 @@ CREATE INDEX IF NOT EXISTS idx_words_due ON words(next_review_date);
 CREATE INDEX IF NOT EXISTS idx_words_box ON words(box);
 CREATE INDEX IF NOT EXISTS idx_words_word ON words(word);
 CREATE INDEX IF NOT EXISTS idx_words_inflected ON words(inflected_form);
+CREATE INDEX IF NOT EXISTS idx_words_due_timestamp ON words(next_review_at);
+
+CREATE TABLE IF NOT EXISTS schema_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 ```
 
 ---
@@ -120,14 +127,17 @@ And no duplicate row is created
 
 ## 6. Stage 2 Backend Handoff
 
-Implementation commit: `ddf23b1`.
+Implementation commits: `ddf23b1` (initial backend), `d9bf8a2` (approved alignment).
 
-- `src/db/schema.js` defines schema version one, the words table and all four
-  requested indexes. A small `persistence_meta` table tracks migration completion.
+- `src/db/sqliteSchema.js` owns native DatabaseSync opening, WAL setup and schema
+  version two. It defines words, schema_meta and the queue/lookup indexes. Existing
+  version-one metadata and rows upgrade transactionally without duplicate imports.
 - `StorageService` now uses native `node:sqlite` DatabaseSync, WAL, synchronous
   NORMAL, parameterized statements and explicit transactions. No dependencies added.
 - `LibraryStore` delegates insertion, removal and review to targeted row mutations;
   it reads committed database state rather than retaining a stale whole-library copy.
+  Due queues use indexed SQL and statistics use database aggregates; neither
+  deserializes the complete library. Original timestamp strings are preserved.
 - JSON migration imports validated entries atomically before renaming the source
   to `vocab_library.json.migrated`. A persistent pending marker makes post-commit
   rename failures recoverable on restart without duplicate imports. Existing backups
@@ -138,10 +148,34 @@ Implementation commit: `ddf23b1`.
   libraries remain empty after restart. Full-library imports are atomic replacements.
 - Verification: `npm test` (all five files), `npm run build`, `npm run lint`,
   individual JavaScript syntax checks, Python compilation and `git diff --check` pass.
-  All 11 new SQLite tests pass both on Node 22.23.3 and Electron 45.2.1's Node
+  All 14 SQLite tests in `src/test/sqliteStorage.test.js` pass on Node 22.23.3
+  and Electron 45.2.1's Node
   24.22.1. Real headless Electron IPC-to-SQLite storage round-trip passes.
 - Stage 3 integration can use the existing renderer-facing API. SQLite connections
   expose an idempotent `close()` for explicit lifecycle owners. Full UI/E2E release
   verification and the FEAT-002 frontend repairs remain separate Stage 4 work.
 - Runtime note: Node 22.13+ loads `node:sqlite` without the experimental flag;
   earlier Node 22 versions need the flag. Electron 45 supplies the required runtime.
+
+
+## 7. Stage 2 Alignment Requirements
+
+Per the approved implementation request, `src/db/sqliteSchema.js` owns native
+DatabaseSync opening, WAL configuration and schema initialization. The metadata
+table is named `schema_meta`; existing version-one `persistence_meta` databases
+must upgrade without losing pending JSON migration markers. Queue and statistics
+queries execute directly in SQLite. An indexed `next_review_at` epoch column
+supports date ordering while preserving original model timestamp strings,
+including valid ISO offsets. Tests live in `src/test/sqliteStorage.test.js`.
+
+
+### Stage 3 Handoff to Gemini
+
+- Status: `backend_complete`; active owner: `gemini`.
+- Existing `window.vocabAPI` methods and WordModel contracts remain unchanged.
+- Runtime schema and tests now use the exact requested filenames and schema_meta.
+- Verified: `npm test`, `npm run lint`, `npm run build`, all 14 SQLite tests under
+  Electron, individual JavaScript syntax checks, and the real Electron
+  `bridge_and_storage_roundtrip` integration check. No new dependencies.
+- Gemini can proceed with Stage 3 integration using the existing IPC bridge.
+  Stage 4 retains the full release verification gate.
