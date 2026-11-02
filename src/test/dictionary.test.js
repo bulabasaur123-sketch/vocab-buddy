@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { cleanHtmlText, extractWiktionaryEtymology, createDictionaryService } = require('../services/dictionary');
+const { cleanHtmlText, extractWiktionaryEtymology, extractWiktionaryMeanings, createDictionaryService } = require('../services/dictionary');
 const { validateWords } = require('../db/wordSchema');
 const html = '<h2 id="English">English</h2><h3>Etymology</h3><p>From <a>Serendip</a>, coined by <b>Horace Walpole</b> in 1754.<sup class="reference">[1]</sup></p><h3>Pronunciation</h3><span class="IPA">/test/</span>';
 const entries = [{ phonetics: [{ audio: 'https://audio.example/word-au.mp3' }, { text: '/ipa/', audio: 'https://audio.example/word-us.mp3' }], meanings: [{ partOfSpeech: 'noun', synonyms: ['chance', 'chance', 'fortune'], definitions: [{ definition: 'A happy discovery.', example: 'A chance encounter.', synonyms: ['luck'], antonyms: ['misfortune'] }] }] }];
@@ -41,6 +41,40 @@ for (const [status, code] of [[404, 'NOT_FOUND'], [429, 'RATE_LIMITED'], [503, '
     await assert.rejects(service(response({}, status)).lookupWord('word'), error => error.code === code);
   });
 }
+test('Dictionary HTTP 502/503 falls back to Wiktionary meanings, IPA and audio', async () => {
+  const wikiHtml = `
+    <h2 id="English">English</h2>
+    <h3>Etymology</h3>
+    <p>From Latin tumultuosus.</p>
+    <h3>Pronunciation</h3>
+    <span class="IPA">/tjʊˈmʌl.tjʊ.əs/</span>
+    <audio src="https://upload.wikimedia.org/wikipedia/commons/transcoded/9/9f/En-au-tumultuous.ogg/En-au-tumultuous.ogg.mp3"></audio>
+    <h3>Adjective</h3>
+    <ol>
+      <li>Characterized by loud, confused noise.
+        <dl><dd><span class="nyms synonym"><span>Synonyms:</span> <a href="/wiki/noisy">noisy</a>, <a href="/wiki/riotous">riotous</a></span></dd></dl>
+      </li>
+      <li>Causing or characterized by tumult; chaotic, disorderly.</li>
+    </ol>
+  `;
+  const parsed = extractWiktionaryMeanings(wikiHtml);
+  assert.equal(parsed.meanings.length, 1);
+  assert.equal(parsed.meanings[0].partOfSpeech, 'adjective');
+  assert.equal(parsed.meanings[0].definitions.length, 2);
+  assert.deepEqual(parsed.synonyms, ['noisy', 'riotous']);
+
+  const word = await service(response({}, 502), response({ parse: { text: { '*': wikiHtml } } })).lookupWord('tumultuous', 'Book of Kyoshi');
+  assert.equal(word.word, 'tumultuous');
+  assert.equal(word.displayWord, 'Tumultuous');
+  assert.equal(word.phonetic, '/tjʊˈmʌl.tjʊ.əs/');
+  assert.match(word.audioUrl, /En-au-tumultuous\.ogg\.mp3$/);
+  assert.equal(word.etymology, 'From Latin tumultuosus.');
+  assert.equal(word.meanings[0].partOfSpeech, 'adjective');
+  assert.equal(word.meanings[0].definitions[0].definition, 'Characterized by loud, confused noise.');
+  assert.deepEqual(word.synonyms, ['noisy', 'riotous']);
+  assert.equal(word.bookSource, 'Book of Kyoshi');
+  validateWords([word]);
+});
 test('Network failures, malformed JSON, empty entries and invalid input reject', async () => {
   await assert.rejects(createDictionaryService(async () => { throw new Error('offline'); }).lookupWord('word'), { code: 'NETWORK_ERROR' });
   await assert.rejects(createDictionaryService(async () => { throw Object.assign(new Error('DNS failed'), { code: 'ENOTFOUND' }); }).lookupWord('word'), { code: 'NETWORK_ERROR' });
