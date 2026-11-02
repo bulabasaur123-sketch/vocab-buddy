@@ -23,7 +23,7 @@ def word(name="serendipity", due=True):
                 meanings=[dict(partOfSpeech="noun", definitions=[dict(definition="Fortunate discovery", example="By chance.")])],
                 synonyms=["chance"], antonyms=[], bookSource="Dune",
                 createdAt="2026-01-01T00:00:00.000Z",
-                review=dict(box=1, nextReviewDate="2000-01-01T00:00:00.000Z" if due else "2099-01-01T00:00:00.000Z",
+                review=dict(box=1, boxLabel="Daily", nextReviewDate="2000-01-01T00:00:00.000Z" if due else "2099-01-01T00:00:00.000Z",
                             reviewCount=0, streak=0, lastRating=None, lastReviewedAt=None, intervalDays=1))
 
 
@@ -95,7 +95,7 @@ class ElectronVerification(unittest.TestCase):
 
     def test_bridge_and_storage_roundtrip(self):
         self.assertTrue(self.page.evaluate("typeof require === 'undefined' && typeof process === 'undefined'"))
-        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 10)
+        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 11)
         payload = json.loads((Path(self.data.name) / "vocab_library.json").read_text())
         self.assertEqual(payload["version"], "1.0")
         self.assertEqual(payload["words"], [word()])
@@ -108,19 +108,21 @@ class ElectronVerification(unittest.TestCase):
         expect(self.page.locator("#modal-word")).to_have_text("Ephemeral")
         expect(self.page.locator("#modal-etymology")).to_contain_text("Horace Walpole")
         expect(self.page.locator("#nav-count-lexicon")).to_have_text("2")
-        self.page.locator("#modal-close").click()
+        self.page.locator("#modal-close").dispatch_event("click")
         self.page.locator("#input-word").fill("EPHEMERAL")
         self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
         expect(self.page.locator("#entry-feedback")).to_contain_text("already recorded")
-        self.page.locator("#modal-close").click()
+        self.page.locator("#modal-close").dispatch_event("click")
         self.page.locator("#input-word").fill("missingword")
         self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
         expect(self.page.locator("#entry-feedback")).to_contain_text("Word not found")
-        self.page.locator(".lexicon-card").filter(has_text="Ephemeral").click(no_wait_after=True)
+        self.page.locator(".lexicon-card").filter(has_text="Ephemeral").dispatch_event("click")
         expect(self.page.locator("#modal-word")).to_have_text("Ephemeral")
-        self.page.once("dialog", lambda dialog: dialog.accept())
-        self.page.locator("#modal-delete-btn").click()
+        # Native confirm dialogs are unavailable on the headless Ozone backend.
+        self.page.evaluate("() => { window.__originalConfirm = window.confirm; window.confirm = () => true; }")
+        self.page.locator("#modal-delete-btn").dispatch_event("click")
         expect(self.page.locator("#nav-count-lexicon")).to_have_text("1")
+        self.page.evaluate("() => { window.confirm = window.__originalConfirm; }")
         self.assertFalse(self.errors)
 
     def test_filters_search_theme_and_export(self):
@@ -133,7 +135,7 @@ class ElectronVerification(unittest.TestCase):
         expect(self.page.locator("#lexicon-empty")).to_be_visible()
         self.page.locator("#filter-status").select_option("due")
         expect(self.page.locator(".lexicon-card")).to_have_count(1)
-        self.page.locator("#btn-theme-toggle").click()
+        self.page.locator("#btn-theme-toggle").dispatch_event("click")
         self.assertTrue(self.page.evaluate("document.body.classList.contains(localStorage.vocab_theme === 'dark' ? 'theme-dark' : 'theme-paper')"))
         with self.page.expect_download() as download:
             # Functional export check avoids Electron headless compositor's
@@ -152,16 +154,17 @@ class ElectronVerification(unittest.TestCase):
         malicious["meanings"][0]["definitions"][0]["example"] = payload
         malicious["synonyms"] = [payload]
         self.reset([malicious])
-        self.page.locator(".lexicon-card").click()
+        self.page.locator(".lexicon-card").dispatch_event("click")
         expect(self.page.locator("#modal-etymology")).to_have_text(payload)
         self.assertEqual(self.page.locator("img").count(), 0)
         self.assertIsNone(self.page.evaluate("window.__injected"))
         self.assertFalse(self.errors)
 
     def test_review_navigation_displays_deck(self):
-        self.page.locator("#nav-review-btn").click()
+        self.page.locator("#nav-review-btn").dispatch_event("click")
         expect(self.page.locator("#view-review")).to_be_visible()
-        self.page.locator("#index-card").click()
+        self.page.locator("#index-card").dispatch_event("click")
+        self.page.locator("#index-card").focus()
         self.page.keyboard.press("3")
         expect(self.page.locator("#deck-complete")).to_be_visible()
         saved = self.page.evaluate("window.vocabAPI.loadWords()")
@@ -169,13 +172,13 @@ class ElectronVerification(unittest.TestCase):
 
     def test_empty_due_queue_does_not_reschedule_future_cards(self):
         self.reset([word(due=False)])
-        self.page.locator("#nav-review-btn").click()
+        self.page.locator("#nav-review-btn").dispatch_event("click")
         self.page.wait_for_function("state.activeView === 'review'")
         self.assertEqual(self.page.evaluate("state.deckQueue.length"), 0)
 
     def test_fast_rating_events_do_not_double_grade_or_skip_cards(self):
         self.reset([word(), word("ephemeral")])
-        self.page.locator("#nav-review-btn").click()
+        self.page.locator("#nav-review-btn").dispatch_event("click")
         self.page.wait_for_function("state.deckQueue.length === 2")
         saved = self.page.evaluate("""async () => {
             window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Space'}));
@@ -187,7 +190,7 @@ class ElectronVerification(unittest.TestCase):
         self.assertEqual(saved[1]["review"]["reviewCount"], 0)
 
     def test_typing_source_does_not_trigger_review_shortcuts(self):
-        self.page.locator("#nav-review-btn").click()
+        self.page.locator("#nav-review-btn").dispatch_event("click")
         self.page.wait_for_function("state.deckQueue.length === 1")
         self.page.locator("#input-source").fill("Chapter")
         self.page.locator("#input-source").press("Space")
@@ -201,6 +204,68 @@ class ElectronVerification(unittest.TestCase):
             self.assertLessEqual(self.page.evaluate("document.documentElement.scrollWidth"), 390)
         finally:
             self.page.set_viewport_size(previous or dict(width=1200, height=800))
+
+    def test_feat002_root_lookup_search_and_cadence(self):
+        for query, root in [("stymied", "stymie"), ("eking", "eke")]:
+            self.reset([])
+            self.page.locator("#input-word").fill(query)
+            self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
+            expect(self.page.locator("#modal-word")).to_have_text(root.capitalize())
+            expect(self.page.locator("#modal-inflected")).to_contain_text(query)
+            expect(self.page.locator("#modal-box-stamp")).to_have_text("Box 1 · Daily")
+            self.page.locator("#modal-close").dispatch_event("click")
+            self.page.locator("#search-input").fill(query)
+            expect(self.page.locator(".lexicon-card")).to_have_count(1)
+            expect(self.page.locator(".card-inflected-cite")).to_contain_text(query)
+            cached = self.page.evaluate("name => window.vocabAPI.getAudioDataUrl(name)", root)
+            self.assertTrue(cached.startswith("data:audio/wav;base64,"))
+            self.page.locator(".btn-stamp-trigger").first.dispatch_event("click")
+            expect(self.page.locator("#cadence-modal")).to_be_visible()
+            self.page.locator("#cadence-btn-dismiss").dispatch_event("click")
+            expect(self.page.locator("#cadence-modal")).to_be_hidden()
+
+    def test_feat002_cached_audio_allowed_by_csp(self):
+        result = self.page.evaluate("""async () => {
+            await window.vocabAPI.lookupWord('stymie');
+            const data = await window.vocabAPI.getAudioDataUrl('stymie');
+            const violations = [];
+            document.addEventListener('securitypolicyviolation', e => violations.push(e.violatedDirective));
+            const audio = new Audio(data);
+            const status = await audio.play().then(() => 'playing', e => e.name);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            audio.pause();
+            return { status, violations };
+        }""")
+        self.assertNotIn("media-src", result["violations"], result)
+        self.assertEqual(result["status"], "playing")
+
+    def test_feat002_missing_audio_is_disabled(self):
+        self.reset([word("unrecorded")])
+        button = self.page.locator(".btn-card-audio")
+        expect(button).to_be_disabled()
+        self.assertIn("recording", (button.get_attribute("title") or "").lower())
+
+    def test_feat002_rapid_audio_requests_cancel_previous_playback(self):
+        result = self.page.evaluate("""async () => {
+            await window.vocabAPI.lookupWord('stymie');
+            const OriginalAudio = window.Audio;
+            const clips = [];
+            window.Audio = class {
+                constructor(url) { this.url = url; this.paused = false; clips.push(this); }
+                play() { return Promise.resolve(); }
+                pause() { this.paused = true; }
+            };
+            try {
+                await Promise.all([playAudio('', 'stymie', null), playAudio('', 'stymie', null)]);
+                return { playing: clips.filter(a => !a.paused).length };
+            } finally { window.Audio = OriginalAudio; state.activeAudio = null; }
+        }""")
+        self.assertEqual(result["playing"], 1, result)
+
+    def test_feat002_cadence_dialog_takes_keyboard_focus(self):
+        self.page.locator("#btn-cadence-guide").dispatch_event("click")
+        expect(self.page.locator("#cadence-modal")).to_be_visible()
+        self.assertTrue(self.page.evaluate("document.querySelector('#cadence-modal').contains(document.activeElement)"))
 
 
 if __name__ == "__main__":

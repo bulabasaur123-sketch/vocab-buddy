@@ -19,13 +19,23 @@ app.whenReady().then(() => {
     item.setSavePath(path.join(dataDir, path.basename(item.getFilename())));
   });
 });
-const dictionary = require('../src/services/dictionary');
-const fixtureDictionary = dictionary.createDictionaryService(async input => {
+// Inject at the network boundary so production service construction stays intact.
+globalThis.fetch = async input => {
   const url = new URL(input);
-  if (url.hostname === 'en.wiktionary.org') return { ok: true, json: async () => ({ parse: { text: { '*': '<h2>English</h2><h3>Etymology</h3><p>From Serendip, coined by Horace Walpole.</p>' } } }) };
+  if (url.hostname === 'en.wiktionary.org') return Response.json({ parse: { text: { '*': '<h2>English</h2><h3>Etymology</h3><p>From Serendip, coined by Horace Walpole.</p>' } } });
+  if (url.pathname.endsWith('.mp3')) {
+    // A valid short PCM recording; MIME sniffing serves WAV despite the cache filename.
+    const bytes = Buffer.alloc(444);
+    bytes.write('RIFF'); bytes.writeUInt32LE(436, 4); bytes.write('WAVEfmt ', 8);
+    bytes.writeUInt32LE(16, 16); bytes.writeUInt16LE(1, 20); bytes.writeUInt16LE(1, 22);
+    bytes.writeUInt32LE(8000, 24); bytes.writeUInt32LE(16000, 28);
+    bytes.writeUInt16LE(2, 32); bytes.writeUInt16LE(16, 34);
+    bytes.write('data', 36); bytes.writeUInt32LE(400, 40);
+    return new Response(bytes);
+  }
   const word = decodeURIComponent(url.pathname.split('/').pop());
-  if (word === 'missingword') return { ok: false, status: 404 };
-  return { ok: true, json: async () => [{ phonetic: '/fixture/', phonetics: [{ audio: 'https://audio.example/word-us.mp3' }], meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: `Definition for ${word}`, example: 'A fixture sentence.' }], synonyms: ['chance'] }] }] };
-});
-dictionary.lookupWord = fixtureDictionary.lookupWord;
+  if (word === 'missingword') return new Response('', { status: 404 });
+  if (['stymied', 'eking'].includes(word)) return Response.json([{ phonetics: [], meanings: [] }]);
+  return Response.json([{ phonetic: '/fixture/', phonetics: [{ audio: 'https://api.dictionaryapi.dev/media/pronunciations/en/' + word + '-us.mp3' }], meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: `Definition for ${word}`, example: 'A fixture sentence.' }], synonyms: ['chance'] }] }]);
+};
 require('../main');
