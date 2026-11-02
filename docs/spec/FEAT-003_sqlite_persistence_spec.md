@@ -2,8 +2,8 @@
 title: "Vocab Buddy: SQLite Persistence Engine (FEAT-003)"
 type: prd_and_spec
 feature_code: FEAT-003
-status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-02
 updated_at: 2026-11-02
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-02
 # Feature Specification: FEAT-003 SQLite Persistence Engine
 
 > **Feature Code:** FEAT-003  
-> **Active Stage:** Backend Complete — Ready for Frontend Integration (Stage 3)  
+> **Active Stage:** Frontend Integrated — Ready for Stage 4 Code Review & Security Gate
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -179,3 +179,26 @@ including valid ISO offsets. Tests live in `src/test/sqliteStorage.test.js`.
   `bridge_and_storage_roundtrip` integration check. No new dependencies.
 - Gemini can proceed with Stage 3 integration using the existing IPC bridge.
   Stage 4 retains the full release verification gate.
+
+---
+
+## 8. Stage 3 Frontend Integration & Verification (Gemini Complete)
+
+- [x] **Zero Contract Regressions:** Verified that all 11 methods exposed on `window.vocabAPI` interact flawlessly with the SQLite-backed `LibraryStore` and `StorageService`.
+- [x] **Lexicon Rendering & Filtering:** Successfully tested card loading, full-text search, Leitner box status filtering (`due`, `learning`, `mastered`), and dynamic tally counts.
+- [x] **Word Add & Detail Modals:** Tested word entry with root lemmatization, duplicate word rejection, and point deletion against the SQLite database.
+- [x] **Review Session Flow:** Verified that card flip, keyboard rating (`1` to `4`), and single-row review scheduling (`UPDATE words ...`) execute with zero-CLS and instant state updates.
+- [x] **Export / Import Integrity:** Verified that JSON exports and bulk imports preserve complete model fidelity and trigger atomic database transactions.
+- [x] **E2E Regressions Verified:** All 14 Electron E2E test cases pass on headless Chromium (`verify.py`), confirming that real IPC, SQLite queries, and frontend DOM mutations work in unison.
+
+---
+
+## 9. Stage 4 Handoff Checklist (Gemini -> Codex)
+
+- [ ] Security audit: verify SQLite parameterized queries, injection safety, and path containment in `userData/vocab_buddy.db`.
+- [ ] Code review: review `sqliteSchema.js`, `storage.js`, and `libraryStore.js` diffs.
+- [ ] Full verification suite: run `npm test`, `npm run lint`, `npm run build`, and `python3 e2e/verify.py`.
+- [ ] Update status to `ready_to_ship`.
+
+**Handoff Command for Developer:**
+> Prompt Codex: *"Codex, please conduct the Stage 4 Security Review, Quality Audit, and Final Verification Gate for FEAT-003 per `docs/spec/FEAT-003_sqlite_persistence_spec.md`."*
