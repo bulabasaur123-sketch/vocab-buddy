@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Root Lemmatization, Lightweight Audio & Leitner Context"
 type: prd_and_spec
 feature_code: FEAT-002
-status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-02
 updated_at: 2026-11-02
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-02
 # Feature Specification: FEAT-002 Root Lemmatization, Lightweight Audio & Leitner Context
 
 > **Feature Code:** FEAT-002  
-> **Active Stage:** Ready for Backend (Stage 2)  
+> **Active Stage:** Backend Complete — Ready for Frontend (Stage 3)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Review Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -213,3 +213,20 @@ And intervalDays is set to 30
 
 **Handoff Command for Developer:**
 > Prompt Codex: *"Codex, please implement the backend services, root lemma resolution, audio caching, and tests for FEAT-002 per `docs/spec/FEAT-002_root_lemmatization_audio_leitner_spec.md`."*
+
+
+## Stage 2 Backend Handoff
+
+- Implementation committed as `1dc587e`.
+- Root lookup preserves `inflectedForm`, inherits canonical pronunciation and meanings,
+  and bounds resolution to five unique headwords. Suffix rules are heuristic.
+- Audio cache enforces a 102400-byte maximum and exposes cached recordings through
+  `window.vocabAPI.getAudioDataUrl(word.word)`. Missing recordings return null.
+- Cache filenames follow `{word}.mp3`; Wikimedia Ogg/WAV bytes retain their original
+  encoding, with the correct MIME type supplied by the data URL bridge.
+- Existing libraries gain box labels on load without rescheduling existing dates.
+- Verified: `npm test`, `npm run build`, `npm run lint`, individual JavaScript
+  syntax checks, and `git diff --check`. Network providers use injected fixtures;
+  live audio playback remains part of frontend integration verification.
+- Gemini owns the next stage: canonical titles, encountered-form subtitles,
+  cadence badges/guide, and cached audio playback.
