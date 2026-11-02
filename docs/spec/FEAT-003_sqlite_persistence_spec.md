@@ -2,8 +2,8 @@
 title: "Vocab Buddy: SQLite Persistence Engine (FEAT-003)"
 type: prd_and_spec
 feature_code: FEAT-003
-status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-02
 updated_at: 2026-11-02
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-02
 # Feature Specification: FEAT-003 SQLite Persistence Engine
 
 > **Feature Code:** FEAT-003  
-> **Active Stage:** Stage 1 Complete — Ready for Backend Implementation (Stage 2)  
+> **Active Stage:** Backend Complete — Ready for Frontend Integration (Stage 3)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -116,3 +116,32 @@ And no duplicate row is created
 - [x] Gherkin acceptance criteria defined for Codex test coverage.
 - [x] Implementation plan authored and ready for user sign-off.
 - [x] Status set to `ready_for_backend`.
+
+
+## 6. Stage 2 Backend Handoff
+
+Implementation commit: `ddf23b1`.
+
+- `src/db/schema.js` defines schema version one, the words table and all four
+  requested indexes. A small `persistence_meta` table tracks migration completion.
+- `StorageService` now uses native `node:sqlite` DatabaseSync, WAL, synchronous
+  NORMAL, parameterized statements and explicit transactions. No dependencies added.
+- `LibraryStore` delegates insertion, removal and review to targeted row mutations;
+  it reads committed database state rather than retaining a stale whole-library copy.
+- JSON migration imports validated entries atomically before renaming the source
+  to `vocab_library.json.migrated`. A persistent pending marker makes post-commit
+  rename failures recoverable on restart without duplicate imports. Existing backups
+  are never overwritten. Invalid legacy data or corrupt/future databases fail
+  without replacing the user's files; initialization can be retried after repair.
+- Word models, nested JSON fields, audio metadata and IPC signatures are preserved.
+  Missing legacy box labels and intervals receive compatible defaults. Empty
+  libraries remain empty after restart. Full-library imports are atomic replacements.
+- Verification: `npm test` (all five files), `npm run build`, `npm run lint`,
+  individual JavaScript syntax checks, Python compilation and `git diff --check` pass.
+  All 11 new SQLite tests pass both on Node 22.23.3 and Electron 45.2.1's Node
+  24.22.1. Real headless Electron IPC-to-SQLite storage round-trip passes.
+- Stage 3 integration can use the existing renderer-facing API. SQLite connections
+  expose an idempotent `close()` for explicit lifecycle owners. Full UI/E2E release
+  verification and the FEAT-002 frontend repairs remain separate Stage 4 work.
+- Runtime note: Node 22.13+ loads `node:sqlite` without the experimental flag;
+  earlier Node 22 versions need the flag. Electron 45 supplies the required runtime.
