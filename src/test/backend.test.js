@@ -12,7 +12,7 @@ const { starterWords } = require('../db/seed');
 const { registerHandlers } = require('../services/ipc');
 const now = new Date('2026-10-31T12:00:00.000Z');
 function temporary(t) { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vocab-test-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); return dir; }
-for (const [rating, box, days, streak] of [['again', 1, 1, 0], ['hard', 1, 1, 1], ['good', 2, 3, 1], ['easy', 3, 4, 1]]) {
+for (const [rating, box, days, streak] of [['again', 1, 1, 0], ['hard', 1, 1, 1], ['good', 2, 3, 1], ['easy', 3, 7, 1]]) {
   test(`Box 1 ${rating} schedules ${days} days`, () => {
     const previous = initialReview(now);
     const next = calculateNextReview(previous, rating, now);
@@ -22,18 +22,18 @@ for (const [rating, box, days, streak] of [['again', 1, 1, 0], ['hard', 1, 1, 1]
     assert.equal(previous.reviewCount, 0);
   });
 }
-test('Box 4 again resets streak; easy caps box; hard caps delay', () => {
+test('Box 4 again resets streak; easy caps box; hard retains box cadence', () => {
   const previous = { ...initialReview(now), box: 4, streak: 4, intervalDays: 10 };
   assert.equal(calculateNextReview(previous, 'again', now).streak, 0);
   assert.equal(calculateNextReview(previous, 'again', now).box, 1);
   assert.equal(calculateNextReview(previous, 'easy', now).box, 5);
-  assert.equal(calculateNextReview(previous, 'easy', now).intervalDays, 40);
-  assert.equal(calculateNextReview(previous, 'hard', now).intervalDays, 2);
+  assert.equal(calculateNextReview(previous, 'easy', now).intervalDays, 30);
+  assert.equal(calculateNextReview(previous, 'hard', now).intervalDays, 14);
   assert.throws(() => calculateNextReview(previous, 'bogus', now));
   assert.throws(() => calculateNextReview({ box: 6 }, 'good', now));
 });
 test('Due queue includes boundary, sorts oldest first, and preserves input', () => {
-  const a = starterWords(now)[0]; const b = structuredClone(a); b.id = 'b'; b.review.box = 5; b.review.nextReviewDate = '2026-10-30T00:00:00Z';
+  const a = starterWords(now)[0]; const b = structuredClone(a); b.id = 'b'; b.review.box = 5; b.review.boxLabel = 'Mastered'; b.review.nextReviewDate = '2026-10-30T00:00:00Z';
   const c = structuredClone(a); c.id = 'c'; c.review.nextReviewDate = '2026-11-01T00:00:00Z';
   const words = [a, b, c]; assert.deepEqual(getDueWordsQueue(words, now).map(word => word.id), ['b', a.id]);
   assert.equal(words[0], a); assert.equal(isDueForReview(c, now), false);
@@ -90,7 +90,7 @@ test('Preload exposes only named channel wrappers, never raw IPC', async () => {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../preload.js'), 'utf8'), { require: name => {
     assert.equal(name, 'electron'); return { contextBridge: { exposeInMainWorld: (name, value) => { assert.equal(name, 'vocabAPI'); api = value; } }, ipcRenderer: { invoke: (...args) => calls.push(args) } };
   } });
-  assert.equal(Object.keys(api).length, 10); api.lookupWord('test'); api.reviewWord('id', 'again');
+  assert.equal(Object.keys(api).length, 11); api.lookupWord('test'); api.reviewWord('id', 'again');
   assert.deepEqual(calls, [['vocab:lookup', 'test', ''], ['vocab:review', 'id', 'again']]);
   assert.equal(api.invoke, undefined);
 });
@@ -121,7 +121,7 @@ test('Electron initializes isolated windows, denies navigation, and wires lifecy
     electron: { app: { whenReady: () => Promise.resolve(), on: (name, fn) => events.set(name, fn), getPath: () => '/fake/userData', quit: () => { quit = true; } }, BrowserWindow, ipcMain: {}, session: { defaultSession: { setPermissionRequestHandler: fn => { permissions.request = fn; }, setPermissionCheckHandler: fn => { permissions.check = fn; } } } },
     'node:path': path, 'node:fs': { existsSync: () => true }, 'node:url': require('node:url'),
     './src/services/storage': { StorageService: class {} }, './src/store/libraryStore': { LibraryStore: class {} },
-    './src/services/dictionary': {}, './src/services/ipc': { registerHandlers: (_ipc, _store, _dictionary, check) => { trusted = check; } }
+    './src/services/dictionary': {}, './src/services/ipc': { createBackendServices: () => ({ dictionary: {}, audio: {} }), registerHandlers: (_ipc, _store, _dictionary, check) => { trusted = check; } }
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../main.js'), 'utf8'), { __dirname: '/app', require: name => { assert.ok(name in modules, name); return modules[name]; }, console, process: { platform: 'linux' } });
   await new Promise(resolve => setImmediate(resolve));

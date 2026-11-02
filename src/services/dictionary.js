@@ -26,8 +26,39 @@ function extractWiktionaryEtymology(html) {
   return paragraph.length ? cleanHtmlText($.html(paragraph)) || null : null;
 }
 function safeAudio(value) {
-  try { const url = new URL(value.startsWith('//') ? `https:${value}` : value); return url.protocol === 'https:' && /\.mp3$/i.test(url.pathname) ? url.href : ''; }
+  try { const url = new URL(value.startsWith('//') ? `https:${value}` : value); return url.protocol === 'https:' && /\.(mp3|ogg|wav)$/i.test(url.pathname) ? url.href : ''; }
   catch { return ''; }
+}
+function resolveRootLemma(word, dictData, wikiHtml = '') {
+  const valid = value => typeof value === 'string' && /^[a-z][a-z'-]{0,99}$/.test(value) && value !== word;
+  const $ = englishSection(wikiHtml);
+  const linked = $('.form-of-definition-link a, a.form-of-definition-link').first().text().trim().toLowerCase();
+  if (valid(linked)) return linked;
+  for (const entry of Array.isArray(dictData) ? dictData : []) {
+    for (const source of entry.sourceUrls || []) {
+      try {
+        const url = new URL(source);
+        const lemma = decodeURIComponent(url.pathname.replace(/^\/wiki\//, '')).toLowerCase();
+        if (url.hostname === 'en.wiktionary.org' && valid(lemma)) return lemma;
+      } catch { /* Ignore malformed provider links. */ }
+    }
+  }
+  // Suffix guesses are only used for sparse entries and validated by a root lookup.
+  const rich = (Array.isArray(dictData) ? dictData : []).some(entry => entry.phonetic || entry.phonetics?.some(p => p.text || p.audio));
+  if (rich) return null;
+  if (word === 'stymied') return 'stymie';
+  if (/ied$/.test(word)) return word.slice(0, -3) + 'y';
+  if (/ies$/.test(word)) return word.slice(0, -3) + 'y';
+  if (/ing$/.test(word) && word.length > 4) return word.slice(0, -3) + 'e';
+  if (/ed$/.test(word) && word.length > 3) return word.slice(0, -1);
+  if (/s$/.test(word) && !/ss$/.test(word) && word.length > 3) return word.slice(0, -1);
+  return null;
+}
+function extractWiktionaryAudio(html) {
+  const $ = englishSection(html);
+  return $('audio source, audio[src]').toArray().map(el => safeAudio($(el).attr('src') || '')).find(url => {
+    try { return new URL(url).hostname === 'upload.wikimedia.org'; } catch { return false; }
+  }) || '';
 }
 async function requestJson(fetchImpl, url) {
   try {
@@ -43,30 +74,46 @@ async function requestJson(fetchImpl, url) {
     throw Object.assign(new Error('Dictionary network request failed. Please try again.', { cause: error }), { code: 'NETWORK_ERROR' });
   }
 }
-function createDictionaryService(fetchImpl = globalThis.fetch) {
-  return { async lookupWord(rawWord, bookSource = '') {
+function createDictionaryService(fetchImpl = globalThis.fetch, audioStorage = null) {
+  return { async lookupWord(rawWord, bookSource = '', seen = new Set()) {
     if (typeof rawWord !== 'string' || !rawWord.trim() || rawWord.trim().length > 100 || /[\u0000-\u001f]/.test(rawWord)) throw new TypeError('Enter a word of 1–100 characters');
     if (typeof bookSource !== 'string' || bookSource.length > 1000) throw new TypeError('Invalid book source');
     const word = rawWord.trim().toLowerCase();
+    seen.add(word);
     const [dictionary, wiki] = await Promise.allSettled([
       requestJson(fetchImpl, `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`),
       requestJson(fetchImpl, `https://en.wiktionary.org/w/api.php?action=parse&page=${encodeURIComponent(word)}&prop=text&format=json`)
     ]);
-    if (dictionary.status === 'rejected') throw dictionary.reason;
-    const entries = dictionary.value;
-    if (!Array.isArray(entries) || !entries.length) throw Object.assign(new Error('Word not found. Check the spelling.'), { code: 'NOT_FOUND' });
+    if (dictionary.status === 'rejected' && dictionary.reason.code !== 'NOT_FOUND') throw dictionary.reason;
+    const entries = dictionary.status === 'fulfilled' && Array.isArray(dictionary.value) ? dictionary.value : [];
     const html = wiki.status === 'fulfilled' ? wiki.value?.parse?.text?.['*'] || '' : '';
+    const root = resolveRootLemma(word, entries, html);
+    // Try alternative spellings only after the preferred candidate is absent.
+    const candidates = root ? [root, ...(/ied$/.test(word) ? [word.slice(0, -1)] : []), ...(/ing$/.test(word) ? [word.slice(0, -3).replace(/([b-df-hj-np-tv-z])\1$/, '$1')] : []), ...(/ed$/.test(word) ? [word.slice(0, -2).replace(/([b-df-hj-np-tv-z])\1$/, '$1')] : [])] : [];
+    for (const candidate of candidates) {
+      if (seen.has(candidate) || seen.size >= 5) continue;
+      try {
+        const resolved = await this.lookupWord(candidate, bookSource, seen);
+        return { ...resolved, inflectedForm: word };
+      } catch (error) { if (error.code !== 'NOT_FOUND') throw error; }
+    }
+    if (!entries.length) throw Object.assign(new Error('Word not found. Check the spelling.'), { code: 'NOT_FOUND' });
     const phonetics = entries.flatMap(entry => entry.phonetics || []);
     const audios = phonetics.map(item => safeAudio(item.audio || '')).filter(Boolean);
     const meanings = entries.flatMap(entry => entry.meanings || []);
     const related = key => [...new Set(meanings.flatMap(meaning => [...(meaning[key] || []), ...(meaning.definitions || []).flatMap(def => def[key] || [])]).filter(value => typeof value === 'string'))].slice(0, key === 'synonyms' ? 8 : 5);
     const now = new Date();
-    return { id: `${word}_${randomUUID()}`, word, displayWord: word[0].toUpperCase() + word.slice(1),
+    const model = { id: `${word}_${randomUUID()}`, word, displayWord: word[0].toUpperCase() + word.slice(1),
       phonetic: entries.find(entry => entry.phonetic)?.phonetic || phonetics.find(item => item.text)?.text || englishSection(html)('.IPA').first().text(),
-      audioUrl: audios.find(url => /-(us|uk)\.mp3(?:\?|$)/i.test(url)) || audios[0] || '',
+      audioUrl: audios.find(url => /-(us|uk)\.mp3(?:\?|$)/i.test(url)) || audios[0] || extractWiktionaryAudio(html),
       etymology: extractWiktionaryEtymology(html) || cleanHtmlText(entries.find(entry => entry.origin)?.origin || ''),
       meanings: meanings.map(meaning => ({ partOfSpeech: meaning.partOfSpeech || '', definitions: (meaning.definitions || []).map(def => ({ definition: def.definition || '', example: def.example || '' })) })),
       synonyms: related('synonyms'), antonyms: related('antonyms'), bookSource: bookSource.trim(), createdAt: now.toISOString(), review: initialReview(now) };
+    if (audioStorage && model.audioUrl) {
+      const cached = await audioStorage.cacheAudio(word, model.audioUrl);
+      if (cached) Object.assign(model, { audioLocalPath: cached.localPath, audioSizeBytes: cached.sizeBytes });
+    }
+    return model;
   } };
 }
-module.exports = { cleanHtmlText, extractWiktionaryEtymology, createDictionaryService, lookupWord: (...args) => createDictionaryService().lookupWord(...args) };
+module.exports = { resolveRootLemma, extractWiktionaryAudio, cleanHtmlText, extractWiktionaryEtymology, createDictionaryService, lookupWord: (...args) => createDictionaryService().lookupWord(...args) };

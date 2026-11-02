@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { validateWords } = require('../db/wordSchema');
+const { BOX_METRICS } = require('./spacedRepetition');
 const { starterWords } = require('../db/seed');
 class StorageService {
   constructor(storageDir, autoSeed = true) {
@@ -23,7 +24,7 @@ class StorageService {
     try {
       const payload = JSON.parse(text);
       if (payload.version !== '1.0' || !Number.isFinite(Date.parse(payload.updatedAt))) throw new TypeError('Invalid library payload');
-      return validateWords(payload.words);
+      return validateWords(payload.words).map(word => ({ ...word, review: { ...word.review, boxLabel: BOX_METRICS[word.review.box].label } }));
     } catch (error) {
       // Preserve the original bytes before recovering an invalid library.
       this.recoveryPath = `${this.filePath}.corrupt-${randomUUID()}`;

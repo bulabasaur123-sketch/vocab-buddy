@@ -1,6 +1,13 @@
 'use strict';
-function registerHandlers(ipcMain, store, dictionary, trustedFrame) {
+const path = require('node:path');
+const { AudioStorageService } = require('./audioStorage');
+function createBackendServices(userData, fetchImpl = globalThis.fetch) {
+  const audio = new AudioStorageService(path.join(userData, 'audio'), fetchImpl);
+  return { audio, dictionary: require('./dictionary').createDictionaryService(fetchImpl, audio) };
+}
+function registerHandlers(ipcMain, store, dictionary, trustedFrame, audio = null) {
   const handlers = {
+    'vocab:audio': word => audio?.getAudioDataUrl(word) || null,
     'vocab:load': () => store.getWords(),
     'vocab:save': words => store.replace(words) && true,
     'vocab:export': () => store.getWords(),
@@ -19,4 +26,4 @@ function registerHandlers(ipcMain, store, dictionary, trustedFrame) {
     });
   }
 }
-module.exports = { registerHandlers };
+module.exports = { registerHandlers, createBackendServices };

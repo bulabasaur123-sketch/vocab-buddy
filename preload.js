@@ -1,6 +1,7 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vocabAPI', {
+  getAudioDataUrl: word => ipcRenderer.invoke('vocab:audio', word),
   loadWords: () => ipcRenderer.invoke('vocab:load'),
   saveWords: words => ipcRenderer.invoke('vocab:save', words),
   exportData: () => ipcRenderer.invoke('vocab:export'),

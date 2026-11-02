@@ -28,10 +28,31 @@ errors propagate rather than silently discarding the library. Empty libraries
 remain empty on restart. Imports replace, rather than merge, the library.
 
 Review days are elapsed 24-hour periods. New cards are immediately due with a
-one-day base interval. Good/easy intervals are rounded after multiplication;
-thus the first good rating schedules three days. Hard keeps the current box
-and clamps the current interval to one or two days. Box five remains reviewable.
-The optional `intervalDays` field is written on every review.
+one-day base interval. The destination box determines the interval and label:
+Daily (1), 3 Days (3), Weekly (7), Fortnightly (14), Mastered (30).
+Again resets to box one, hard retains the box, good advances one box, and easy
+advances two, capped at five. Existing libraries receive missing box labels on
+load without moving scheduled dates.
+
+## FEAT-002 integration
+
+Lookups resolve English Wiktionary form links, dictionary source headwords, and
+validated suffix guesses (bounded to five unique headwords). Canonical results
+retain the original query as `inflectedForm`. Suffix guessing is a conservative
+fallback for entries lacking pronunciation; it is not a general English parser.
+
+Electron initializes `AudioStorageService` in `userData/audio`. Downloads accept
+HTTPS dictionaryapi.dev and Wikimedia provider hosts, reject redirects, enforce
+102400 bytes while streaming, and atomically publish successful files. Failed
+or oversized recordings leave lookup results usable without cache metadata.
+Existing cache files are reused offline. The `.mp3` cache filename follows the
+spec; Ogg/WAV bytes are preserved without transcoding.
+
+Use `await window.vocabAPI.getAudioDataUrl(word.word)` to obtain a cached data URL
+or null. This trusted-frame IPC method accepts a headword, never a filesystem
+path, and reports the recording MIME type. `audioLocalPath` is relative to the
+audio directory; `audioSizeBytes` records the cached size. UI playback integration
+remains Stage 3 work.
 
 Tests live in `src/test/`, following Codex's ownership boundary, and use the
 Node built-in runner. Network requests are injected fixtures; tests do not
