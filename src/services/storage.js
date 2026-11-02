@@ -1,9 +1,8 @@
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const { DatabaseSync } = require('node:sqlite');
 const { validateWords } = require('../db/wordSchema');
-const { SCHEMA_VERSION, SCHEMA_SQL } = require('../db/schema');
+const { SCHEMA_VERSION, openDatabase, initializeSchema } = require('../db/sqliteSchema');
 const { BOX_METRICS, calculateNextReview } = require('./spacedRepetition');
 const { starterWords } = require('../db/seed');
 const FIELDS = {
@@ -13,13 +12,13 @@ const FIELDS = {
 };
 const REVIEW_FIELDS = { box: 'box', boxLabel: 'box_label', nextReviewDate: 'next_review_date', reviewCount: 'review_count', streak: 'streak', lastRating: 'last_rating', lastReviewedAt: 'last_reviewed_at', intervalDays: 'interval_days' };
 const JSON_FIELDS = ['meanings', 'synonyms', 'antonyms'];
-const columns = [...Object.values(FIELDS), ...Object.values(REVIEW_FIELDS), ...JSON_FIELDS.map(key => `${key}_json`)];
+const columns = [...Object.values(FIELDS), ...Object.values(REVIEW_FIELDS), ...JSON_FIELDS.map(key => `${key}_json`), 'next_review_at'];
 function normalized(word) {
   return { ...word, review: { ...word.review, boxLabel: word.review.boxLabel ?? BOX_METRICS[word.review.box].label, intervalDays: word.review.intervalDays ?? 1 } };
 }
 function values(model) {
   const word = normalized(model);
-  return [...Object.keys(FIELDS).map(key => word[key] ?? null), ...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), ...JSON_FIELDS.map(key => JSON.stringify(word[key]))];
+  return [...Object.keys(FIELDS).map(key => word[key] ?? null), ...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), ...JSON_FIELDS.map(key => JSON.stringify(word[key])), Date.parse(word.review.nextReviewDate)];
 }
 function model(row) {
   const word = {};
@@ -33,17 +32,11 @@ class StorageService {
     fs.mkdirSync(storageDir, { recursive: true, mode: 0o700 });
     this.filePath = path.join(storageDir, 'vocab_buddy.db');
     this.legacyPath = path.join(storageDir, 'vocab_library.json');
-    // SQLite inherits the database permissions for its WAL/SHM sidecars.
-    try { fs.closeSync(fs.openSync(this.filePath, 'wx', 0o600)); }
-    catch (error) { if (error.code !== 'EEXIST') throw error; }
-    this.db = new DatabaseSync(this.filePath);
+    this.db = openDatabase(this.filePath);
     this.closed = false;
     try {
-      this.db.exec('PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
       this.transaction(() => {
-        const version = this.db.prepare('PRAGMA user_version').get().user_version;
-        if (version > SCHEMA_VERSION) throw new Error('Unsupported database schema version');
-        this.db.exec(SCHEMA_SQL);
+        const version = initializeSchema(this.db);
         this.insert = this.db.prepare(`INSERT INTO words (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
         if (version === 0) {
           let words;
@@ -52,20 +45,23 @@ class StorageService {
             const payload = JSON.parse(text);
             if (payload.version !== '1.0' || !Number.isFinite(Date.parse(payload.updatedAt))) throw new TypeError('Invalid legacy library payload');
             words = validateWords(payload.words);
-            this.db.prepare("INSERT INTO persistence_meta VALUES ('legacy_rename_pending', '1')").run();
+            this.db.prepare("INSERT INTO schema_meta VALUES ('legacy_rename_pending', '1')").run();
           } catch (error) {
             if (error.code !== 'ENOENT') throw error;
             words = autoSeed ? starterWords() : [];
           }
           for (const word of words) this.insert.run(...values(word));
-          this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
         }
+        this.db.prepare("INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_version', ?)").run(String(SCHEMA_VERSION));
+        this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
       });
       this.finishLegacyMigration();
       this.selectAll = this.db.prepare('SELECT * FROM words ORDER BY rowid');
+      this.selectDue = this.db.prepare('SELECT * FROM words WHERE next_review_at <= ? ORDER BY next_review_at, rowid');
+      this.selectStats = this.db.prepare('SELECT COUNT(*) AS total, COALESCE(SUM(next_review_at <= ?), 0) AS due, COALESCE(SUM(box = 5), 0) AS mastered FROM words');
       this.selectOne = this.db.prepare('SELECT * FROM words WHERE id = ?');
       this.deleteOne = this.db.prepare('DELETE FROM words WHERE id = ?');
-      this.updateReview = this.db.prepare(`UPDATE words SET ${Object.values(REVIEW_FIELDS).map(column => `${column} = ?`).join(', ')} WHERE id = ?`);
+      this.updateReview = this.db.prepare(`UPDATE words SET ${Object.values(REVIEW_FIELDS).map(column => `${column} = ?`).join(', ')}, next_review_at = ? WHERE id = ?`);
     } catch (error) { this.db.close(); throw error; }
   }
   transaction(action) {
@@ -74,13 +70,13 @@ class StorageService {
     catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
   finishLegacyMigration() {
-    if (!this.db.prepare("SELECT 1 FROM persistence_meta WHERE key = 'legacy_rename_pending'").get()) return;
+    if (!this.db.prepare("SELECT 1 FROM schema_meta WHERE key = 'legacy_rename_pending'").get()) return;
     const backup = `${this.legacyPath}.migrated`;
     if (fs.existsSync(this.legacyPath)) {
       if (fs.existsSync(backup)) throw new Error('Legacy migration backup already exists; preserve both files before retrying');
       fs.renameSync(this.legacyPath, backup);
     } else if (!fs.existsSync(backup)) throw new Error('Legacy migration source and backup are missing');
-    this.db.prepare("DELETE FROM persistence_meta WHERE key = 'legacy_rename_pending'").run();
+    this.db.prepare("DELETE FROM schema_meta WHERE key = 'legacy_rename_pending'").run();
   }
   loadWords() { return this.selectAll.all().map(model); }
   saveWords(words) {
@@ -109,9 +105,18 @@ class StorageService {
       const word = model(row);
       word.review = calculateNextReview(word.review, rating, now);
       validateWords([word]);
-      this.updateReview.run(...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), id);
+      this.updateReview.run(...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), Date.parse(word.review.nextReviewDate), id);
       return true;
     });
+  }
+  getDueWordsQueue(now = new Date()) {
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError('Invalid review date');
+    return this.selectDue.all(now.getTime()).map(model);
+  }
+  getReviewStats(now = new Date()) {
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError('Invalid review date');
+    const { total, due, mastered } = this.selectStats.get(now.getTime());
+    return { total, due, mastered, learning: total - mastered };
   }
   exportData() { return this.loadWords(); }
   importData(words) { return this.saveWords(words); }

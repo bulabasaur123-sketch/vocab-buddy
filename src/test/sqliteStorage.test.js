@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { StorageService } = require('../services/storage');
+const { SCHEMA_VERSION } = require('../db/sqliteSchema');
 const { LibraryStore } = require('../store/libraryStore');
 const { starterWords } = require('../db/seed');
 function directory(t) {
@@ -127,4 +128,49 @@ test('Future database versions and corrupt database files fail without JSON fall
   assert.throws(() => new StorageService(dir), /Unsupported database schema version/);
   const broken = directory(t); const file = path.join(broken, 'vocab_buddy.db'); fs.writeFileSync(file, 'broken sqlite');
   assert.throws(() => new StorageService(broken)); assert.equal(fs.readFileSync(file, 'utf8'), 'broken sqlite');
+});
+test('schema_meta records the current version and version-one databases retain words and migration markers', t => {
+  const dir = directory(t); const entries = words(); const original = storage(t, dir);
+  original.saveWords(entries);
+  // Reconstruct the committed version-one layout from before sqliteSchema.js.
+  original.db.exec(`DROP INDEX idx_words_due_timestamp;
+    ALTER TABLE words DROP COLUMN next_review_at;
+    ALTER TABLE schema_meta RENAME TO persistence_meta;
+    DELETE FROM persistence_meta;
+    INSERT INTO persistence_meta VALUES ('legacy_rename_pending', '1');
+    PRAGMA user_version = 1;`);
+  original.close(); const file = legacy(dir, entries);
+  const upgraded = storage(t, dir);
+  assert.deepEqual(upgraded.loadWords(), entries);
+  assert.equal(upgraded.db.prepare("SELECT value FROM schema_meta WHERE key = 'schema_version'").get().value, String(SCHEMA_VERSION));
+  assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION);
+  assert.equal(upgraded.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'persistence_meta'").get(), undefined);
+  assert.equal(fs.existsSync(file + '.migrated'), true);
+  assert.equal(upgraded.db.prepare("SELECT 1 FROM schema_meta WHERE key = 'legacy_rename_pending'").get(), undefined);
+});
+test('Indexed due queries order actual instants, preserve timestamp strings and do not load the whole library', t => {
+  const db = storage(t); const entries = words();
+  entries[0].review.nextReviewDate = '2026-11-02T10:00:00+08:00'; // 02:00 UTC
+  entries[1].review.nextReviewDate = '2026-11-02T01:00:00.000Z';
+  entries[2].review.nextReviewDate = '2026-11-02T03:00:00.000Z';
+  db.saveWords(entries); const store = new LibraryStore(db);
+  t.mock.method(db, 'loadWords', () => { throw new Error('full library read forbidden'); });
+  const now = new Date('2026-11-02T02:00:00.000Z');
+  assert.deepEqual(store.getDueWordsQueue(now), [entries[1], entries[0]]);
+  assert.deepEqual(store.getReviewStats(now), { total: 3, due: 2, mastered: 0, learning: 3 });
+  const plan = db.db.prepare('EXPLAIN QUERY PLAN SELECT * FROM words WHERE next_review_at <= ? ORDER BY next_review_at, rowid').all(now.getTime());
+  assert.ok(plan.some(row => /SEARCH words USING INDEX idx_words_due_timestamp/.test(row.detail)));
+  assert.throws(() => store.getDueWordsQueue(new Date('invalid')), /Invalid review date/);
+  assert.throws(() => store.getReviewStats(new Date('invalid')), /Invalid review date/);
+});
+test('Targeted review updates queue index and database aggregate counts immediately', t => {
+  const db = storage(t); const now = new Date('2026-11-02T00:00:00Z'); const entries = words();
+  entries[1].review = { ...entries[1].review, box: 5, boxLabel: 'Mastered', intervalDays: 30 };
+  db.saveWords(entries);
+  assert.deepEqual(db.getReviewStats(now), { total: 3, due: 3, mastered: 1, learning: 2 });
+  db.reviewWord(entries[0].id, 'good', now);
+  assert.deepEqual(db.getDueWordsQueue(now).map(word => word.id), entries.slice(1).map(word => word.id));
+  assert.equal(db.db.prepare('SELECT next_review_at FROM words WHERE id = ?').get(entries[0].id).next_review_at, Date.parse('2026-11-05T00:00:00Z'));
+  db.saveWords([]);
+  assert.deepEqual(db.getReviewStats(now), { total: 0, due: 0, mastered: 0, learning: 0 });
 });

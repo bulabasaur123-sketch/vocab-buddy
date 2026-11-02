@@ -24,7 +24,9 @@ Render external definitions and etymology as text, rather than HTML.
 Storage uses Electron's `userData/vocab_buddy.db` through native `node:sqlite`
 DatabaseSync, with WAL, synchronous NORMAL, a five-second busy timeout, prepared
 statements and explicit transactions. New database files are created with mode
-0600. `src/db/schema.js` owns schema version one and the requested indexes.
+0600. `src/db/sqliteSchema.js` owns connection setup, schema version two, the words
+and schema_meta tables, and the requested indexes. Version-one databases are
+upgraded transactionally, retaining their pending migration markers.
 
 On first initialization, a validated `vocab_library.json` is imported in one
 transaction, then renamed to `vocab_library.json.migrated`. A pending marker
@@ -38,7 +40,10 @@ Store add/delete/review operations target individual rows. Review reads and
 updates the matching row inside BEGIN IMMEDIATE so two connections cannot grade
 stale snapshots. `saveWords`/`importData` remain validated transactional full
 replacements; `exportData` returns model arrays for frontend JSON serialization.
-Nested meanings/synonyms/antonyms are stored as JSON text columns. IPC signatures
+Nested meanings/synonyms/antonyms are stored as JSON text columns. Due queues
+use the indexed next_review_at epoch column, preserving original timestamp text
+and ordering equivalent UTC instants correctly. Statistics are SQL aggregates;
+neither query deserializes the full library. IPC signatures
 are unchanged; there is no renderer SQL or database-path API. `close()` explicitly
 releases a storage connection (idempotent); process exit also releases it.
 
