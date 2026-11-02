@@ -45,15 +45,14 @@ test('Storage creates nested directories, seeds once, persists payload and empty
   assert.equal(storage.loadWords().length, 1);
   const words = starterWords(now); words[0].bookSource = 'Dune'; assert.equal(storage.saveWords(words), true);
   assert.deepEqual(new StorageService(dir).loadWords(), words);
-  const payload = JSON.parse(fs.readFileSync(storage.filePath)); assert.equal(payload.version, '1.0'); assert.ok(Date.parse(payload.updatedAt));
+  assert.equal(storage.db.prepare('PRAGMA user_version').get().user_version, 1);
+  assert.equal(storage.db.prepare('SELECT COUNT(*) AS n FROM words').get().n, 1);
   storage.saveWords([]); assert.deepEqual(new StorageService(dir).loadWords(), []);
 });
-test('Corruption preserves exact original file and recovers; autoSeed false is empty', t => {
+test('Malformed legacy JSON is preserved and migration fails closed', t => {
   const dir = temporary(t); const file = path.join(dir, 'vocab_library.json'); fs.writeFileSync(file, '{broken');
-  const storage = new StorageService(dir, false); assert.deepEqual(storage.loadWords(), []);
-  assert.equal(fs.readFileSync(storage.recoveryPath, 'utf8'), '{broken');
-  fs.writeFileSync(file, JSON.stringify({ version: '9', words: [] }));
-  assert.deepEqual(storage.loadWords(), []);
+  assert.throws(() => new StorageService(dir, false));
+  assert.equal(fs.readFileSync(file, 'utf8'), '{broken');
 });
 test('Import/export validates before replacement and returns detached values', t => {
   const storage = new StorageService(temporary(t), false); const words = starterWords(now);
@@ -71,7 +70,7 @@ test('Store add, remove, review, duplicate rejection and restart persistence', t
   assert.throws(() => store.reviewWord('missing', 'good')); store.removeWord(word.id); assert.deepEqual(storage.loadWords(), []);
 });
 test('Failed persistence does not publish new store state', () => {
-  const store = new LibraryStore({ loadWords: () => [], saveWords: () => { throw new Error('disk full'); } });
+  const store = new LibraryStore({ loadWords: () => [], addWord: () => { throw new Error('disk full'); } });
   assert.throws(() => store.addWord(starterWords(now)[0]), /disk full/); assert.deepEqual(store.getWords(), []);
 });
 test('IPC checks sender for every channel and delegates storage/review/lookup', async t => {
@@ -94,14 +93,12 @@ test('Preload exposes only named channel wrappers, never raw IPC', async () => {
   assert.deepEqual(calls, [['vocab:lookup', 'test', ''], ['vocab:review', 'id', 'again']]);
   assert.equal(api.invoke, undefined);
 });
-test('Failed atomic rename preserves the previous library and removes temporary file', t => {
-  const dir = temporary(t); const storage = new StorageService(dir);
-  const original = fs.readFileSync(storage.filePath, 'utf8');
-  const rename = t.mock.method(fs, 'renameSync', () => { throw Object.assign(new Error('read only'), { code: 'EACCES' }); });
-  assert.throws(() => storage.saveWords([]), /read only/);
-  rename.mock.restore();
-  assert.equal(fs.readFileSync(storage.filePath, 'utf8'), original);
-  assert.deepEqual(fs.readdirSync(dir), ['vocab_library.json']);
+test('Failed SQL replacement preserves the previous library', t => {
+  const storage = new StorageService(temporary(t));
+  const original = storage.loadWords();
+  const duplicate = { ...original[0], id: 'duplicate-id' };
+  assert.throws(() => storage.saveWords([...original, duplicate]));
+  assert.deepEqual(storage.loadWords(), original);
 });
 test('Electron initializes isolated windows, denies navigation, and wires lifecycle handlers', async () => {
   const events = new Map(); const windowEvents = new Map(); const webEvents = new Map(); let options; let loaded; let trusted;

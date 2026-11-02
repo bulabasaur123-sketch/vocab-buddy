@@ -1,6 +1,6 @@
-# FEAT-001 backend integration
+# Backend integration
 
-Run `npm ci` and `npm test` with Node 22 or later. `npm start` launches Electron
+Run `npm ci` and `npm test` with Node 22.13 or later (built-in `node:sqlite` without a flag). `npm start` launches Electron
 with the Linux `--no-sandbox` flag required by the specification. Until Stage 3
 provides `index.html`, the window displays a backend-ready placeholder.
 
@@ -21,11 +21,26 @@ rate limiting, HTTP, and network failures. Wiktionary failure is nonfatal when
 the dictionary succeeds; unavailable enrichment fields are empty strings.
 Render external definitions and etymology as text, rather than HTML.
 
-Storage writes a versioned payload to Electron's `userData/vocab_library.json`
-using a flushed temporary file and atomic rename. Invalid existing payloads are
-preserved beside the library as `.corrupt-<uuid>` before recovery. Filesystem
-errors propagate rather than silently discarding the library. Empty libraries
-remain empty on restart. Imports replace, rather than merge, the library.
+Storage uses Electron's `userData/vocab_buddy.db` through native `node:sqlite`
+DatabaseSync, with WAL, synchronous NORMAL, a five-second busy timeout, prepared
+statements and explicit transactions. New database files are created with mode
+0600. `src/db/schema.js` owns schema version one and the requested indexes.
+
+On first initialization, a validated `vocab_library.json` is imported in one
+transaction, then renamed to `vocab_library.json.migrated`. A pending marker
+supports restart after a post-commit rename failure. Existing backup files are
+never overwritten. Malformed JSON, duplicate headwords, database corruption,
+and unknown future schema versions fail without replacing user data. Empty
+libraries remain empty across restart; seeding happens only at initialization.
+Optional review labels/intervals default to the existing box label and one day.
+
+Store add/delete/review operations target individual rows. Review reads and
+updates the matching row inside BEGIN IMMEDIATE so two connections cannot grade
+stale snapshots. `saveWords`/`importData` remain validated transactional full
+replacements; `exportData` returns model arrays for frontend JSON serialization.
+Nested meanings/synonyms/antonyms are stored as JSON text columns. IPC signatures
+are unchanged; there is no renderer SQL or database-path API. `close()` explicitly
+releases a storage connection (idempotent); process exit also releases it.
 
 Review days are elapsed 24-hour periods. New cards are immediately due with a
 one-day base interval. The destination box determines the interval and label:

@@ -1,25 +1,13 @@
 'use strict';
-const { calculateNextReview, getReviewStats, getDueWordsQueue } = require('../services/spacedRepetition');
-const { validateWords } = require('../db/wordSchema');
+const { getReviewStats, getDueWordsQueue } = require('../services/spacedRepetition');
 class LibraryStore {
-  constructor(storage) { this.storage = storage; this.words = storage.loadWords(); }
-  getWords() { return structuredClone(this.words); }
-  replace(words) {
-    const next = structuredClone(validateWords(words));
-    this.storage.saveWords(next);
-    this.words = next;
-    return this.getWords();
-  }
-  addWord(word) {
-    if (this.words.some(existing => existing.word === word.word)) throw new Error('Word already saved');
-    return this.replace([...this.words, word]);
-  }
-  removeWord(id) { return this.replace(this.words.filter(word => word.id !== id)); }
-  reviewWord(id, rating, now = new Date()) {
-    if (!this.words.some(word => word.id === id)) throw new Error('Word not found');
-    return this.replace(this.words.map(word => word.id === id ? { ...word, review: calculateNextReview(word.review, rating, now) } : word));
-  }
-  getReviewStats(now) { return getReviewStats(this.words, now); }
-  getDueWordsQueue(now) { return structuredClone(getDueWordsQueue(this.words, now)); }
+  constructor(storage) { this.storage = storage; }
+  getWords() { return this.storage.loadWords(); }
+  replace(words) { this.storage.saveWords(words); return this.getWords(); }
+  addWord(word) { this.storage.addWord(word); return this.getWords(); }
+  removeWord(id) { this.storage.removeWord(id); return this.getWords(); }
+  reviewWord(id, rating, now = new Date()) { this.storage.reviewWord(id, rating, now); return this.getWords(); }
+  getReviewStats(now) { return getReviewStats(this.getWords(), now); }
+  getDueWordsQueue(now) { return getDueWordsQueue(this.getWords(), now); }
 }
 module.exports = { LibraryStore };

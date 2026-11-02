@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import sqlite3
 import subprocess
 import tempfile
 import time
@@ -96,9 +97,12 @@ class ElectronVerification(unittest.TestCase):
     def test_bridge_and_storage_roundtrip(self):
         self.assertTrue(self.page.evaluate("typeof require === 'undefined' && typeof process === 'undefined'"))
         self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 11)
-        payload = json.loads((Path(self.data.name) / "vocab_library.json").read_text())
-        self.assertEqual(payload["version"], "1.0")
-        self.assertEqual(payload["words"], [word()])
+        with sqlite3.connect(Path(self.data.name) / "vocab_buddy.db") as database:
+            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 1)
+            rows = database.execute("SELECT word, meanings_json FROM words").fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], word()["word"])
+        self.assertEqual(json.loads(rows[0][1]), word()["meanings"])
         self.assertFalse(self.errors)
 
     def test_lookup_add_duplicate_missing_delete(self):
