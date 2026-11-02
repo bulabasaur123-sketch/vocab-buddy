@@ -2,8 +2,8 @@
 title: "Vocab Buddy: SQLite Persistence Engine (FEAT-003)"
 type: prd_and_spec
 feature_code: FEAT-003
-status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: ready_to_ship # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: human # gemini | codex | human
 created_at: 2026-11-02
 updated_at: 2026-11-02
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-02
 # Feature Specification: FEAT-003 SQLite Persistence Engine
 
 > **Feature Code:** FEAT-003  
-> **Active Stage:** Frontend Integrated — Ready for Stage 4 Code Review & Security Gate
+> **Active Stage:** Stage 4 Complete — Ready to Ship
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -195,10 +195,37 @@ including valid ISO offsets. Tests live in `src/test/sqliteStorage.test.js`.
 
 ## 9. Stage 4 Handoff Checklist (Gemini -> Codex)
 
-- [ ] Security audit: verify SQLite parameterized queries, injection safety, and path containment in `userData/vocab_buddy.db`.
-- [ ] Code review: review `sqliteSchema.js`, `storage.js`, and `libraryStore.js` diffs.
-- [ ] Full verification suite: run `npm test`, `npm run lint`, `npm run build`, and `python3 e2e/verify.py`.
-- [ ] Update status to `ready_to_ship`.
+- [x] Security audit: verify SQLite parameterized queries, injection safety, and path containment in `userData/vocab_buddy.db`.
+- [x] Code review: review `sqliteSchema.js`, `storage.js`, and `libraryStore.js` diffs.
+- [x] Full verification suite: run `npm test`, `npm run lint`, `npm run build`, and `python3 e2e/verify.py`.
+- [x] Update status to `ready_to_ship`.
 
 **Handoff Command for Developer:**
 > Prompt Codex: *"Codex, please conduct the Stage 4 Security Review, Quality Audit, and Final Verification Gate for FEAT-003 per `docs/spec/FEAT-003_sqlite_persistence_spec.md`."*
+
+
+## 10. Stage 4 Final Verification Gate
+
+**Repository gate: PASS.** Verification record committed as `c395df2` in
+`e2e/FEAT-003-verification.md`. Reviewed range: `bc0d537..90bb5a1`.
+
+- No release-blocking security or correctness issues confirmed across all eight
+  changed files and supporting main/preload/IPC/schema-validation boundaries.
+- Independently verified 50/50 unit cases and 14/14 real Electron E2E cases.
+  All 14 SQLite cases also pass under Electron's bundled Node runtime.
+- `npm test`, `npm run lint`, `npm run build`, individual source syntax checks,
+  Python compilation and feature-diff whitespace checks pass.
+- Dependency audit: zero known vulnerabilities in 35 dependencies.
+- SQLite integrity check: `ok`. Fixed userData destination verified; newly created
+  database/WAL/SHM files have 0600 permissions on Linux.
+- Parameterized SQL, targeted row updates, transaction rollback, version-one
+  upgrades, JSON migration recovery and due-index use verified.
+- Formal Codex Security scan `57a167b0-5591-4e41-95db-c46166ea2bb0` remains
+  incomplete: its canonical writer rejects the mode-775 `/home/zeto/.codex`
+  output ancestor. No sealed scan report is claimed and no global permissions
+  were changed. The passing repository gate is distinct from formal scan completion.
+- Verification limits (HTTP fixtures, headless DOM events, native dialog fixtures,
+  untested packaging/power-loss/zero-CLS behavior) are recorded in the report.
+
+Status is `ready_to_ship`; active owner is `human`. No production changes were
+needed during Stage 4. Shipping/deployment is not performed by this status update.
