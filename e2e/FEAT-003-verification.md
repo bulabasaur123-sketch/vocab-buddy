@@ -3,8 +3,8 @@
 **Repository release gate: PASS.** Reviewed immutable application range
 `bc0d537..90bb5a1` on November 2, 2026. No release-blocking security or correctness
 findings were confirmed. No production code changes were needed during review.
-The formal Codex Security plugin scan remains incomplete as documented below;
-this result is the repository's source review and test gate, not a sealed scan.
+The same formal Codex Security scan was subsequently completed and sealed after
+the output-directory permission fix; see its completion record below.
 
 ## Verification results
 
@@ -77,18 +77,23 @@ zero-CLS behavior are not established by this run. WAL with synchronous NORMAL
 is the specified policy; power-loss behavior was not fault-injected. The existing
 `--no-sandbox` launch configuration remains a deployment limitation.
 
-## Formal security scan limitation
+## Formal security scan completion
 
-FEAT-003 scan `57a167b0-5591-4e41-95db-c46166ea2bb0` retains its exact diff target
-and ready preflight context. The canonical draft writer rejects the output
-ancestor `/home/zeto/.codex` (mode 775):
+Scan `57a167b0-5591-4e41-95db-c46166ea2bb0` was resumed and sealed successfully
+at `2026-11-02T14:13:10.285514Z` after the user changed `~/.codex` to mode 700.
+The original immutable `bc0d537..90bb5a1` target was retained; no replacement
+scan was created. Canonical coverage is complete with no deferred work and
+zero reportable findings. The host generated the sealed manifest, findings,
+coverage, Markdown report and SARIF export, and completed readback was verified.
+The scope and runtime limitations described above still apply.
 
-> Scan output parent must not be group- or world-writable without the sticky bit.
-
-No global permissions were changed, no replacement scan was created, and no
-sealed report or completed formal scan is claimed. Resume this same scan after
-its storage configuration/ownership is corrected. This tooling limitation does
-not invalidate the independently completed repository checks above.
+Artifacts are in the plugin's existing scan directory:
+`~/.codex/state/plugins/codex-security/scans/Vocab-Buddy/90bb5a1b902bbba17c4bda74ea7360e5f61f6e70_20261102T135724Z_8xphkzpo/`.
+The primary report is `report.md`; machine-readable output is
+`exports/results.sarif`. Plugin-reported rollout usage at finalization was
+3,661,417 tokens, including 3,614,720 cached input tokens (one thread).
+No application code changed and the prior test results were not rerun solely
+for this permission and artifact-finalization continuation.
 
 ## Reproduce
 
