@@ -133,67 +133,110 @@ el.btnThemeToggle.addEventListener('click', () => {
 });
 
 // ==========================================================================
-// Audio Playback (Local Lightweight Cache First -> Web URL -> Speech)
+// Audio Playback & State
 // ==========================================================================
+let currentAudioRequestId = 0;
+let currentPlayingButton = null;
+
+function hasAudioRecord(word) {
+  if (!word) return false;
+  return Boolean(word.audioUrl || word.audioLocalPath);
+}
+
+function updateAudioButtonState(button, hasAudio) {
+  if (!button) return;
+  if (hasAudio) {
+    button.disabled = false;
+    button.title = 'Listen to pronunciation';
+  } else {
+    button.disabled = true;
+    button.title = 'No audio recording archived';
+  }
+}
+
 async function playAudio(audioUrl, wordText, buttonEl) {
+  // 1. Cancel and pause any active audio playback immediately
   if (state.activeAudio) {
-    state.activeAudio.pause();
+    try {
+      state.activeAudio.pause();
+    } catch { /* ignore */ }
     state.activeAudio = null;
   }
 
-  if (buttonEl) buttonEl.classList.add('playing');
+  // 2. Clear playing state from previous button
+  if (currentPlayingButton) {
+    currentPlayingButton.classList.remove('playing');
+    currentPlayingButton = null;
+  }
 
-  const onEnd = () => {
-    if (buttonEl) buttonEl.classList.remove('playing');
+  // 3. Increment request ID to supersede any in-flight requests
+  const requestId = ++currentAudioRequestId;
+  if (buttonEl) {
+    currentPlayingButton = buttonEl;
+    buttonEl.classList.add('playing');
+  }
+
+  const cleanup = () => {
+    if (requestId === currentAudioRequestId) {
+      if (buttonEl) buttonEl.classList.remove('playing');
+      if (currentPlayingButton === buttonEl) currentPlayingButton = null;
+      state.activeAudio = null;
+    }
   };
 
-  // 1. Try local cached lightweight audio from backend IPC
+  // 4. Try local cached lightweight audio from backend IPC
+  let dataUrl = null;
   try {
     if (window.vocabAPI && window.vocabAPI.getAudioDataUrl && wordText) {
-      const dataUrl = await window.vocabAPI.getAudioDataUrl(wordText);
-      if (dataUrl) {
-        const audio = new Audio(dataUrl);
-        state.activeAudio = audio;
-        audio.onended = onEnd;
-        audio.onerror = () => fallbackSpeech(wordText, onEnd);
-        await audio.play();
-        return;
-      }
+      dataUrl = await window.vocabAPI.getAudioDataUrl(wordText);
     }
   } catch (err) {
     console.debug('Local audio cache retrieval failed, checking remote URL:', err);
   }
 
-  // 2. Try remote audio URL
-  if (audioUrl && audioUrl.startsWith('http')) {
-    try {
-      const audio = new Audio(audioUrl);
-      state.activeAudio = audio;
-      audio.onended = onEnd;
-      audio.onerror = () => fallbackSpeech(wordText, onEnd);
-      await audio.play();
-      return;
-    } catch {
-      fallbackSpeech(wordText, onEnd);
-      return;
+  // If a newer audio request was made while awaiting IPC, abort!
+  if (requestId !== currentAudioRequestId) {
+    return;
+  }
+
+  // 5. If local cached audio found, play it
+  if (dataUrl) {
+    if (state.activeAudio) {
+      try { state.activeAudio.pause(); } catch {}
+      state.activeAudio = null;
     }
+    const audio = new Audio(dataUrl);
+    state.activeAudio = audio;
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+    try {
+      await audio.play();
+    } catch {
+      cleanup();
+    }
+    return;
   }
 
-  // 3. Fallback to Browser Speech Synthesis
-  fallbackSpeech(wordText, onEnd);
-}
-
-function fallbackSpeech(wordText, callback) {
-  if ('speechSynthesis' in window && wordText) {
-    const utterance = new SpeechSynthesisUtterance(wordText);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.85;
-    utterance.onend = callback;
-    utterance.onerror = callback;
-    window.speechSynthesis.speak(utterance);
-  } else {
-    if (callback) callback();
+  // 6. Try remote audio URL
+  if (audioUrl && audioUrl.startsWith('http')) {
+    if (state.activeAudio) {
+      try { state.activeAudio.pause(); } catch {}
+      state.activeAudio = null;
+    }
+    const audio = new Audio(audioUrl);
+    state.activeAudio = audio;
+    audio.onended = cleanup;
+    audio.onerror = cleanup;
+    try {
+      await audio.play();
+    } catch {
+      cleanup();
+    }
+    return;
   }
+
+  // 7. No audio recording available
+  cleanup();
 }
 
 // ==========================================================================
@@ -346,6 +389,7 @@ function renderLexicon() {
     const boxLabel = word.review?.boxLabel || getBoxLabel(box);
     const isMastered = box >= 5;
     const isInflected = word.inflectedForm && word.inflectedForm.toLowerCase() !== word.word.toLowerCase();
+    const hasAudio = hasAudioRecord(word);
 
     card.innerHTML = `
       <div class="card-mast">
@@ -360,7 +404,7 @@ function renderLexicon() {
 
       <div class="phonetic-row">
         <span class="phonetic-mono">${escapeHtml(word.phonetic || '')}</span>
-        <button type="button" class="btn-icon-audio btn-card-audio" title="Listen to pronunciation">
+        <button type="button" class="btn-icon-audio btn-card-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen to pronunciation' : 'No audio recording archived'}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -383,15 +427,22 @@ function renderLexicon() {
     if (stampBtn) {
       stampBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openCadenceModal();
+        openCadenceModal(stampBtn);
       });
     }
 
     // Audio button click
     const audioBtn = card.querySelector('.btn-card-audio');
+    if (!hasAudio && window.vocabAPI && window.vocabAPI.getAudioDataUrl && word.word) {
+      window.vocabAPI.getAudioDataUrl(word.word).then(dataUrl => {
+        if (dataUrl) updateAudioButtonState(audioBtn, true);
+      }).catch(() => {});
+    }
     audioBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      playAudio(word.audioUrl, word.word, audioBtn);
+      if (!audioBtn.disabled) {
+        playAudio(word.audioUrl, word.word, audioBtn);
+      }
     });
 
     // Card click opens modal
@@ -471,6 +522,16 @@ function openDetailModal(word) {
     el.modalInflected.textContent = '';
   }
 
+  const hasAudio = hasAudioRecord(word);
+  updateAudioButtonState(el.modalAudioBtn, hasAudio);
+  if (!hasAudio && window.vocabAPI && window.vocabAPI.getAudioDataUrl && word.word) {
+    window.vocabAPI.getAudioDataUrl(word.word).then(dataUrl => {
+      if (dataUrl && state.selectedWord === word) {
+        updateAudioButtonState(el.modalAudioBtn, true);
+      }
+    }).catch(() => {});
+  }
+
   const box = word.review?.box || 1;
   const boxLabel = word.review?.boxLabel || getBoxLabel(box);
   el.modalBoxStamp.textContent = `Box ${box} · ${boxLabel}`;
@@ -480,19 +541,21 @@ function openDetailModal(word) {
 }
 
 el.modalBoxStamp.addEventListener('click', () => {
-  openCadenceModal();
+  openCadenceModal(el.modalBoxStamp);
 });
 
-el.modalClose.addEventListener('click', () => {
-  el.detailModal.classList.add('hidden');
-});
+function closeDetailModal() {
+  if (el.detailModal) el.detailModal.classList.add('hidden');
+}
+
+el.modalClose.addEventListener('click', closeDetailModal);
 
 el.detailModal.addEventListener('click', (e) => {
-  if (e.target === el.detailModal) el.detailModal.classList.add('hidden');
+  if (e.target === el.detailModal) closeDetailModal();
 });
 
 el.modalAudioBtn.addEventListener('click', () => {
-  if (state.selectedWord) {
+  if (state.selectedWord && !el.modalAudioBtn.disabled) {
     playAudio(state.selectedWord.audioUrl, state.selectedWord.word, el.modalAudioBtn);
   }
 });
@@ -505,7 +568,7 @@ el.modalDeleteBtn.addEventListener('click', async () => {
   if (window.vocabAPI && window.vocabAPI.removeWord) {
     await window.vocabAPI.removeWord(state.selectedWord.id);
   }
-  el.detailModal.classList.add('hidden');
+  closeDetailModal();
   await refreshAll();
 });
 
@@ -575,6 +638,19 @@ function showDeckCard() {
     el.cardBackInflected.classList.add('hidden');
   }
 
+  // Audio button state
+  const hasAudio = hasAudioRecord(current);
+  updateAudioButtonState(el.cardFrontAudio, hasAudio);
+  updateAudioButtonState(el.cardBackAudio, hasAudio);
+  if (!hasAudio && window.vocabAPI && window.vocabAPI.getAudioDataUrl && current.word) {
+    window.vocabAPI.getAudioDataUrl(current.word).then(dataUrl => {
+      if (dataUrl && state.deckQueue[state.deckIndex] === current) {
+        updateAudioButtonState(el.cardFrontAudio, true);
+        updateAudioButtonState(el.cardBackAudio, true);
+      }
+    }).catch(() => {});
+  }
+
   // Back
   el.cardBackWord.textContent = current.displayWord;
   el.cardBackPhonetic.textContent = current.phonetic || '';
@@ -600,7 +676,7 @@ function showDeckCard() {
 
 el.cardFrontBox.addEventListener('click', (e) => {
   e.stopPropagation();
-  openCadenceModal();
+  openCadenceModal(el.cardFrontBox);
 });
 
 function flipCard() {
@@ -613,13 +689,13 @@ el.indexCard.addEventListener('click', flipCard);
 el.cardFrontAudio.addEventListener('click', (e) => {
   e.stopPropagation();
   const word = state.deckQueue[state.deckIndex];
-  if (word) playAudio(word.audioUrl, word.word, el.cardFrontAudio);
+  if (word && !el.cardFrontAudio.disabled) playAudio(word.audioUrl, word.word, el.cardFrontAudio);
 });
 
 el.cardBackAudio.addEventListener('click', (e) => {
   e.stopPropagation();
   const word = state.deckQueue[state.deckIndex];
-  if (word) playAudio(word.audioUrl, word.word, el.cardBackAudio);
+  if (word && !el.cardBackAudio.disabled) playAudio(word.audioUrl, word.word, el.cardBackAudio);
 });
 
 // Rating Action Handlers
@@ -653,19 +729,24 @@ async function submitRating(rating) {
 // Keyboard Navigation
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
+  // Always handle Escape for open dialogs regardless of focused field
+  if (e.key === 'Escape') {
+    if (el.cadenceModal && !el.cadenceModal.classList.contains('hidden')) {
+      e.preventDefault();
+      closeCadenceModal();
+      return;
+    }
+
+    if (el.detailModal && !el.detailModal.classList.contains('hidden')) {
+      e.preventDefault();
+      closeDetailModal();
+      return;
+    }
+  }
+
   // If an input or editable field is active, do not intercept typing
   const tag = e.target && e.target.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
-    return;
-  }
-
-  if (el.cadenceModal && !el.cadenceModal.classList.contains('hidden')) {
-    if (e.key === 'Escape') closeCadenceModal();
-    return;
-  }
-
-  if (!el.detailModal.classList.contains('hidden')) {
-    if (e.key === 'Escape') el.detailModal.classList.add('hidden');
     return;
   }
 
@@ -683,24 +764,68 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ==========================================================================
-// Cadence Guide Modal Controller
+// Cadence Guide Modal Controller & Focus Management
 // ==========================================================================
-function openCadenceModal() {
-  if (el.cadenceModal) el.cadenceModal.classList.remove('hidden');
+let cadenceReturnFocusElement = null;
+
+function openCadenceModal(triggerEl = null) {
+  if (!el.cadenceModal) return;
+  cadenceReturnFocusElement = triggerEl || document.activeElement;
+  el.cadenceModal.classList.remove('hidden');
+
+  // Immediately move keyboard focus into the dialog
+  const focusTarget = el.cadenceBtnDismiss || el.cadenceModalClose || el.cadenceModal.querySelector('button');
+  if (focusTarget) {
+    focusTarget.focus();
+  }
 }
 
 function closeCadenceModal() {
-  if (el.cadenceModal) el.cadenceModal.classList.add('hidden');
+  if (!el.cadenceModal || el.cadenceModal.classList.contains('hidden')) return;
+  el.cadenceModal.classList.add('hidden');
+
+  // Restore keyboard focus to the triggering element
+  if (cadenceReturnFocusElement && typeof cadenceReturnFocusElement.focus === 'function' && document.contains(cadenceReturnFocusElement)) {
+    try {
+      cadenceReturnFocusElement.focus();
+    } catch { /* ignore */ }
+  }
+  cadenceReturnFocusElement = null;
 }
 
-if (el.btnCadenceGuide) el.btnCadenceGuide.addEventListener('click', openCadenceModal);
-if (el.cadenceModalClose) el.cadenceModalClose.addEventListener('click', closeCadenceModal);
-if (el.cadenceBtnDismiss) el.cadenceBtnDismiss.addEventListener('click', closeCadenceModal);
+// Trap keyboard focus inside Cadence modal when open
 if (el.cadenceModal) {
+  el.cadenceModal.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      const focusable = el.cadenceModal.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first || !el.cadenceModal.contains(document.activeElement)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last || !el.cadenceModal.contains(document.activeElement)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+  });
+
   el.cadenceModal.addEventListener('click', (e) => {
     if (e.target === el.cadenceModal) closeCadenceModal();
   });
 }
+
+if (el.btnCadenceGuide) el.btnCadenceGuide.addEventListener('click', () => openCadenceModal(el.btnCadenceGuide));
+if (el.cadenceModalClose) el.cadenceModalClose.addEventListener('click', closeCadenceModal);
+if (el.cadenceBtnDismiss) el.cadenceBtnDismiss.addEventListener('click', closeCadenceModal);
 
 // ==========================================================================
 // View Switching
