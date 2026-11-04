@@ -3,7 +3,7 @@ title: "Vocab Buddy: Organization Suite & Active Retention Quiz Engine (FEAT-004
 type: prd_and_spec
 feature_code: FEAT-004
 status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-04
 updated_at: 2026-11-04
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-04
 # Feature Specification: FEAT-004 Organization Suite & Active Retention Quiz Engine
 
 > **Feature Code:** FEAT-004  
-> **Active Stage:** Stage 3 Complete — Ready for Verification Gate (Codex Stage 4)  
+> **Active Stage:** Stage 4 Gate Failed — Frontend Repair Required (Gemini)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -295,3 +295,26 @@ Frontend implementation completed:
 - **Anti-Slop Design Compliance:** Strictly adheres to [DESIGN.md](file:///home/zeto/Desktop/projects/Vocab%20Buddy/DESIGN.md) (Newsreader serif, Inter grotesque, JetBrains Mono, archival paper palette).
 - **Verification:** `npm test` passes (57/57), `npm run lint` and `npm run build` pass cleanly.
 
+
+## 8. Stage 4 Review & Verification Gate (Codex)
+
+**Result: failed on 2026-11-04.** Status remains `frontend_integrated`.
+Reviewed application range: `ca71998..b533cd8`.
+
+- `npm test`: all six files pass; direct execution confirms 57/57 cases.
+- `npm run lint` and `npm run build`: pass; individual syntax checks also pass.
+- Security diff scan: completed and sealed, zero reportable vulnerabilities.
+- `npm audit --json`: zero known dependency vulnerabilities.
+- Real Electron E2E: 17/18 pass. Favorites-only quiz sampling fails.
+
+**Required repair (P2):** `src/renderer.js:1145-1164` filters favorites after
+requesting an already limited random deck from the entire library. With five
+eligible favorites among 100 entries, a five-question quiz produced only one
+question. Apply favorite eligibility before target sampling/limiting, retain
+global distractor sampling, and rerun the regression in `e2e/verify.py`.
+Document any backend filter-contract extension before implementing it.
+
+Verification evidence was committed in `9615085` before this handoff update.
+See [the full Stage 4 report](../../e2e/FEAT-004-verification.md) for security
+coverage, reproduction commands and limitations. Gemini owns the frontend repair;
+rerun Stage 4 and set `ready_to_ship` only after the regression passes.
