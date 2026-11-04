@@ -25,7 +25,8 @@ def word(name="serendipity", due=True):
                 synonyms=["chance"], antonyms=[], bookSource="Dune",
                 createdAt="2026-01-01T00:00:00.000Z",
                 review=dict(box=1, boxLabel="Daily", nextReviewDate="2000-01-01T00:00:00.000Z" if due else "2099-01-01T00:00:00.000Z",
-                            reviewCount=0, streak=0, lastRating=None, lastReviewedAt=None, intervalDays=1))
+                            reviewCount=0, streak=0, lastRating=None, lastReviewedAt=None, intervalDays=1),
+                isFavorite=False, collections=[], tags=[])
 
 
 class ElectronVerification(unittest.TestCase):
@@ -96,9 +97,9 @@ class ElectronVerification(unittest.TestCase):
 
     def test_bridge_and_storage_roundtrip(self):
         self.assertTrue(self.page.evaluate("typeof require === 'undefined' && typeof process === 'undefined'"))
-        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 11)
+        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 21)
         with sqlite3.connect(Path(self.data.name) / "vocab_buddy.db") as database:
-            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 3)
             rows = database.execute("SELECT word, meanings_json FROM words").fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], word()["word"])
@@ -270,6 +271,107 @@ class ElectronVerification(unittest.TestCase):
         self.page.locator("#btn-cadence-guide").dispatch_event("click")
         expect(self.page.locator("#cadence-modal")).to_be_visible()
         self.assertTrue(self.page.evaluate("document.querySelector('#cadence-modal').contains(document.activeElement)"))
+
+
+    def quiz_words(self, count=6):
+        entries = []
+        for index in range(count):
+            entry = word("term" + chr(97 + index // 26) + chr(97 + index % 26))
+            entry["meanings"][0]["definitions"][0] = dict(
+                definition="Distinct definition " + str(index), example="A " + entry["word"] + " appears.")
+            entries.append(entry)
+        return entries
+
+    def test_feat004_organization_and_markup(self):
+        self.reset(self.quiz_words())
+        self.page.locator(".btn-card-fav").first.dispatch_event("click")
+        self.page.wait_for_function("state.words[0].isFavorite === true")
+        self.page.locator("#filter-status").select_option("favorites")
+        expect(self.page.locator(".lexicon-card")).to_have_count(1)
+        self.page.locator("#btn-new-collection").dispatch_event("click")
+        payload = '<img src=x onerror="window.__injected=true">'
+        self.page.locator("#input-collection-name").fill(payload)
+        self.page.locator("#collection-form").evaluate("form => form.requestSubmit()")
+        self.page.wait_for_function("state.collections.length > 0 && state.collectionFilter !== 'all'")
+        collection = self.page.evaluate("state.collections.find(c => c.id === state.collectionFilter)")
+        try:
+            self.page.locator("#filter-collection").select_option("all")
+            self.page.locator(".lexicon-card").first.dispatch_event("click")
+            self.page.locator("#modal-add-collection-select").select_option(collection["id"])
+            expect(self.page.locator("#modal-collections-list")).to_contain_text(payload)
+            self.page.locator("#modal-tag-input").fill("#Archaic")
+            self.page.locator("#modal-tag-form").evaluate("form => form.requestSubmit()")
+            self.page.wait_for_function("state.words[0].tags.includes('archaic')")
+            expect(self.page.locator("#modal-tags-list")).to_contain_text("#archaic")
+            self.assertEqual(self.page.locator("img").count(), 0)
+            self.assertIsNone(self.page.evaluate("window.__injected"))
+            self.page.locator("#modal-close").dispatch_event("click")
+            self.page.reload()
+            self.page.wait_for_function("state.words[0]?.tags.includes('archaic')")
+            loaded = self.page.evaluate("window.vocabAPI.loadWords()")
+            self.assertTrue(loaded[0]["isFavorite"])
+            self.assertIn(collection["id"], loaded[0]["collections"])
+        finally:
+            self.page.evaluate("id => window.vocabAPI.deleteCollection(id)", collection["id"])
+        self.assertFalse(self.errors)
+
+    def test_feat004_quiz_modes_complete_and_srs(self):
+        for mode in ["definition", "cloze", "missing_letters"]:
+            with self.subTest(mode=mode):
+                self.reset(self.quiz_words())
+                self.page.locator("#nav-quiz-btn").dispatch_event("click")
+                expect(self.page.locator("#view-quiz")).to_be_visible()
+                self.page.locator("#quiz-mode-select").select_option(mode)
+                self.page.locator("#quiz-link-srs").check()
+                self.page.locator("#btn-start-quiz").dispatch_event("click")
+                expect(self.page.locator("#quiz-arena")).to_be_visible()
+                for index in range(5):
+                    q = self.page.evaluate("state.quiz.deck[state.quiz.index]")
+                    if mode == "missing_letters":
+                        self.page.locator("#input-missing-letters").fill(q["solution"])
+                        self.page.locator("#missing-letters-form").evaluate("form => form.requestSubmit()")
+                    else:
+                        self.page.locator(".quiz-option-btn").nth(q["correctAnswerIndex"]).dispatch_event("click")
+                    self.page.wait_for_function("!document.querySelector('#quiz-actions').classList.contains('hidden')")
+                    self.page.locator("#btn-quiz-next").dispatch_event("click")
+                expect(self.page.locator("#quiz-complete-score")).to_contain_text("5 / 5 (100%)")
+                saved = self.page.evaluate("window.vocabAPI.loadWords()")
+                self.assertEqual(sum(w["review"]["reviewCount"] for w in saved), 5)
+                self.assertEqual(sum(w["review"]["box"] == 2 for w in saved), 5)
+        self.assertFalse(self.errors)
+
+    def test_feat004_favorites_scope_fills_requested_deck(self):
+        entries = self.quiz_words(100)
+        for entry in entries[:5]:
+            entry["isFavorite"] = True
+        self.reset(entries)
+        self.page.locator("#nav-quiz-btn").dispatch_event("click")
+        self.page.locator("#quiz-mode-select").select_option("definition")
+        self.page.locator("#quiz-scope-select").select_option("favorites")
+        self.page.evaluate("startQuizSession()")
+        self.assertEqual(self.page.evaluate("document.querySelector('#quiz-empty-notice').classList.contains('hidden') && state.quiz.deck.length"), 5,
+                         "Five eligible favorites must produce five questions independently of nonfavorite sampling")
+
+    def test_feat004_shelf_scope_and_unlinked_feedback(self):
+        entries = self.quiz_words()
+        self.reset(entries)
+        collection = self.page.evaluate("window.vocabAPI.createCollection({name:'Scoped quiz'})")
+        try:
+            self.page.evaluate("async args => { for (const id of args.ids) await window.vocabAPI.assignWordToCollection(id, args.col); await refreshAll(); }",
+                               dict(ids=[w["id"] for w in entries[:5]], col=collection["id"]))
+            self.page.locator("#nav-quiz-btn").dispatch_event("click")
+            self.page.locator("#quiz-scope-select").select_option("col:" + collection["id"])
+            self.page.locator("#quiz-link-srs").uncheck()
+            self.page.evaluate("startQuizSession()")
+            ids = self.page.evaluate("state.quiz.deck.map(q => q.wordId)")
+            self.assertEqual(set(ids), {w["id"] for w in entries[:5]})
+            q = self.page.evaluate("state.quiz.deck[0]")
+            self.page.locator(".quiz-option-btn").nth((q["correctAnswerIndex"] + 1) % 4).dispatch_event("click")
+            self.page.wait_for_function("!document.querySelector('#quiz-actions').classList.contains('hidden')")
+            self.assertTrue(all(w["review"]["reviewCount"] == 0 for w in self.page.evaluate("window.vocabAPI.loadWords()")))
+        finally:
+            self.page.evaluate("id => window.vocabAPI.deleteCollection(id)", collection["id"])
+
 
 
 if __name__ == "__main__":
