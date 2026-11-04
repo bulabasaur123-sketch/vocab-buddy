@@ -1,6 +1,41 @@
 # FEAT-004 Stage 4 verification
 
-**Release gate: FAIL — frontend repair required.** Reviewed immutable application
+**Current release gate: PASS.** Reverified application revision
+`989c001` on November 4, 2026, including repair range `a3c14a8..989c001`.
+The original favorites-sampling blocker is resolved. No production code or tests
+were changed during this rerun. FEAT-004 qualifies for `ready_to_ship`.
+
+## Final rerun results
+
+| Check | Result |
+| --- | --- |
+| `npm test` | Pass, all six test files |
+| Direct unit execution | 57/57 pass: backend 15, dictionary 11, cache security 1, FEAT-002 10, FEAT-004 6, SQLite 14 |
+| `PYTHONPATH=/tmp/vocab-qa-python python3 -m unittest discover -s e2e -p verify.py -v` | 18/18 pass in 22.802 seconds |
+| `npm run lint` | Pass |
+| `npm run build` | Pass |
+| Individual `node --check` | Pass, all 20 JavaScript files |
+| `npm audit --json` | Zero known vulnerabilities, 35 dependencies |
+| Supplemental favorites checks | All three modes return five/ten favorite targets at the requested limits; invalid filter types rejected |
+
+Source review confirms the renderer now passes `favoritesOnly: true` and no
+longer filters an already limited result. The backend validates this as a boolean
+and binds its numeric representation to a static SQL predicate before target
+sampling. Distractor queries remain global and unchanged. The six supplemental
+mode/limit checks used 100 isolated fixture words with ten favorites; the unchanged
+Electron regression verifies five favorites among 100 words yield five questions.
+
+Security review of the four-file repair delta found no new security issues:
+no IPC channel or authority expansion, no dynamic SQL construction from renderer
+input, and no change to text escaping, CSP, storage paths or transaction handling.
+The earlier sealed formal security scan applies to `ca71998..b533cd8`; it has not
+been relabeled as a scan of the repair. Its reference and the original failed-gate
+evidence are retained below. Build/lint and headless runtime limitations below
+remain applicable. The nonfatal Python sqlite ResourceWarning also remains.
+
+## Historical first run (superseded by the passing rerun above)
+
+**Initial release gate: FAIL — frontend repair required.** Reviewed immutable application
 range `ca71998..b533cd8` on November 4, 2026. The specification must remain
 `frontend_integrated` until the favorites quiz regression passes. No production
 code was changed during this review.
