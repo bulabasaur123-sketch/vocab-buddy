@@ -225,7 +225,7 @@ async function playAudio(_audioUrl, wordText, buttonEl) {
     audioFeedback(currentPlayingButton,'');
   }
   currentPlayingButton=buttonEl;
-  if (buttonEl) { buttonEl.setAttribute('aria-busy','true'); buttonEl.dataset.audioState='loading'; audioFeedback(buttonEl,'Loading pronunciation…'); }
+  if (buttonEl) { buttonEl.setAttribute('aria-busy','true'); buttonEl.dataset.audioState='loading'; }
   const finish = (failed=false) => {
     if (requestId !== currentAudioRequestId) return;
     if (buttonEl) {
@@ -252,7 +252,7 @@ async function playAudio(_audioUrl, wordText, buttonEl) {
     if (requestId !== currentAudioRequestId) {clip.pause();return;}
     if (buttonEl && state.activeAudio === clip) {
       buttonEl.removeAttribute('aria-busy'); buttonEl.classList.add('playing');
-      buttonEl.dataset.audioState='playing'; audioFeedback(buttonEl,'Playing pronunciation.');
+      buttonEl.dataset.audioState='playing';
     }
   } catch {finish(true);}
 }
