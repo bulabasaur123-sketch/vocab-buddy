@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Organization Suite & Active Retention Quiz Engine (FEAT-004)"
 type: prd_and_spec
 feature_code: FEAT-004
-status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: ready_to_ship # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: human # gemini | codex | human
 created_at: 2026-11-04
 updated_at: 2026-11-04
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-04
 # Feature Specification: FEAT-004 Organization Suite & Active Retention Quiz Engine
 
 > **Feature Code:** FEAT-004  
-> **Active Stage:** Stage 4 Re-run Ready — Favorites Scope Regression Repaired  
+> **Active Stage:** Stage 4 Complete — Ready to Ship
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -305,7 +305,7 @@ Frontend implementation completed:
 - **Verification:** `npm test` passes (57/57), `npm run lint` and `npm run build` pass cleanly.
 
 
-## 8. Stage 4 Review & Verification Gate (Codex)
+## 8. Initial Stage 4 Gate (Historical; Superseded by Section 10)
 
 **Result: failed on 2026-11-04.** Status remains `frontend_integrated`.
 Reviewed application range: `ca71998..b533cd8`.
@@ -340,3 +340,26 @@ rerun Stage 4 and set `ready_to_ship` only after the regression passes.
   - `e2e/verify.py`: 18/18 Real Electron Playwright E2E tests pass (regression `test_feat004_favorites_scope_fills_requested_deck` passes).
   - Handoff to Codex for final Stage 4 re-verification gate.
 
+
+## 10. Final Stage 4 Re-verification Gate (Codex)
+
+**Result: PASS on 2026-11-04.** Reviewed application revision: `989c001`.
+Status is `ready_to_ship`; the favorites sampling blocker from Section 8 is closed.
+
+- All **18/18** real Electron tests in `e2e/verify.py` pass, including
+  `test_feat004_favorites_scope_fills_requested_deck` (22.802 seconds).
+- All **57/57** unit tests pass across six files; `npm test` also passes.
+- `npm run lint`, `npm run build`, and individual syntax checks for all
+  20 JavaScript files pass.
+- `npm audit --json` reports zero known dependency vulnerabilities.
+- Source review confirms favorites are filtered in SQL before target sampling
+  and limit truncation, while distractors remain global. All three quiz modes
+  also pass supplemental five- and ten-question favorites checks; invalid
+  favorites filter types are rejected.
+- Security review of repair range `a3c14a8..989c001` finds no new security issues.
+  The previously completed formal scan remains scoped to its original revision.
+
+Passing verification evidence was committed in `ea926c5` before this status
+update. See [the Stage 4 verification report](../../e2e/FEAT-004-verification.md)
+for results, review scope and runtime limitations. No production code or test
+changes were required during this rerun.
