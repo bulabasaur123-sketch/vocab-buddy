@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Organization Suite & Active Retention Quiz Engine (FEAT-004)"
 type: prd_and_spec
 feature_code: FEAT-004
-status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-04
 updated_at: 2026-11-04
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-04
 # Feature Specification: FEAT-004 Organization Suite & Active Retention Quiz Engine
 
 > **Feature Code:** FEAT-004  
-> **Active Stage:** Stage 1 Complete — Ready for Backend (Codex Stage 2)  
+> **Active Stage:** Stage 2 Complete — Ready for Frontend (Gemini Stage 3)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
