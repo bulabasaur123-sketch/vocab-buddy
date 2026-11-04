@@ -69,7 +69,7 @@ function renderDesktopLibrary() {
       ${word.inflectedForm ? `<p class="card-inflected-cite">Encountered as: <em>${escapeHtml(word.inflectedForm)}</em></p>` : ''}</div>
       <div class="word-actions"><button type="button" class="btn-card-fav btn-icon-fav ${word.isFavorite ? 'active' : ''}" aria-label="Favorite ${escapeHtml(word.word)}" aria-pressed="${word.isFavorite}">${word.isFavorite ? '★' : '☆'}</button>
       <button type="button" class="btn-card-audio btn-icon-audio" aria-label="Play pronunciation for ${escapeHtml(word.word)}" title="${hasAudioRecord(word) ? 'Listen' : 'No audio recording archived'}" ${hasAudioRecord(word) ? '' : 'disabled'}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M16 8a6 6 0 0 1 0 8"/></svg></button>
-      <button type="button" class="btn-stamp-trigger box-stamp" aria-label="Review schedule for ${escapeHtml(word.word)}">Box ${word.review.box} · ${escapeHtml(word.review.boxLabel)}</button><span class="word-due">${formatNextReview(word.review.nextReviewDate)}</span></div>`;
+      <div class="word-cadence"><button type="button" class="btn-stamp-trigger box-stamp ${word.review.box >= 5 ? 'mastered' : ''}" aria-label="Review schedule for ${escapeHtml(word.word)}">Box ${word.review.box} · ${escapeHtml(word.review.boxLabel)}</button><span class="word-due">${formatNextReview(word.review.nextReviewDate)}</span></div></div>`;
     card.addEventListener('click', event => { if (!event.target.closest('.word-actions')) openDetailModal(word); });
     card.querySelector('.btn-card-fav').addEventListener('click', async () => {
       try { await window.vocabAPI.toggleFavorite(word.id); await refreshAll(); }

@@ -74,17 +74,23 @@ input[type=checkbox] { accent-color: var(--text-accent); width: 1rem; height: 1r
 .card-definition { font-size: var(--reading-size); margin: var(--space-2) 0; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .card-source-cite { font-size: .75rem; color: var(--text-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 45ch; }
 .card-inflected-cite { font-size: .75rem; margin-top: var(--space-1); }
-.word-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.word-due { color: var(--text-muted); font-size: .7rem; white-space: nowrap; }
-.btn-icon-fav { font-size: 1.3rem; padding: .15rem; min-width: 2rem; }
+.word-actions { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-3); border-top: 1px solid var(--border-rule); }
+.word-cadence { display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px; flex-shrink: 0; margin-left: auto; }
+.word-due { color: var(--text-muted); font-size: .7rem; white-space: nowrap; line-height: 1.2; }
+.btn-icon-fav { font-size: 1.25rem; line-height: 1; width: 2.25rem; height: 2.25rem; min-width: 2.25rem; min-height: 2.25rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; border-radius: 4px; color: var(--text-muted); flex-shrink: 0; }
+.btn-icon-fav:hover { color: var(--text-accent); }
 .btn-icon-fav.active { color: var(--text-accent); }
-.btn-icon-audio { min-width: 2rem; min-height: 2rem; font-size: 1rem; }
-.box-stamp { font-size: .7rem; font-family: var(--font-sans); white-space: normal; padding: .2rem .4rem; }
+.btn-icon-audio { width: 2.25rem; height: 2.25rem; min-width: 2.25rem; min-height: 2.25rem; font-size: 1rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; border-radius: 4px; color: var(--text-muted); flex-shrink: 0; }
+.btn-icon-audio:hover:not([disabled]) { color: var(--text-accent); }
+.btn-icon-audio[disabled] { opacity: .35; cursor: not-allowed; }
+.btn-icon-audio.playing { color: var(--text-accent); animation: audioPulse 1s ease-in-out infinite; }
+.box-stamp { font-size: .7rem; font-family: var(--font-sans); white-space: nowrap; padding: .2rem .45rem; min-height: 0; line-height: 1.2; }
 .list-view { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--border-rule); }
 .list-view .lexicon-card { border: 0; border-bottom: 1px solid var(--border-rule); background: transparent; flex-direction: row; align-items: center; padding: var(--space-4) var(--space-2); border-radius: 0; }
 .list-view .lexicon-card:hover,.list-view .lexicon-card.selected { background: var(--bg-surface-subtle); }
 .list-view .card-definition { -webkit-line-clamp: 1; font-size: .875rem; }
-.list-view .word-actions { flex: 0 0 12rem; justify-content: flex-end; }
+.list-view .word-actions { display: grid; grid-template-columns: 2.25rem 2.25rem 9rem; align-items: center; justify-items: center; gap: var(--space-3); flex: 0 0 auto; margin-left: auto; margin-top: 0; padding-top: 0; border-top: none; }
+.list-view .word-cadence { justify-self: end; width: 100%; margin-left: 0; }
 .pagination { display: flex; gap: var(--space-4); align-items: center; justify-content: flex-end; margin-top: var(--space-6); font-size: .75rem; color: var(--text-secondary); }
 .empty-notice { background: transparent; border: 1px dashed var(--border-control); border-radius: 4px; padding: var(--space-12) var(--space-6); }
 .colophon { margin: 0 var(--space-12); padding: var(--space-6) 0; }
@@ -175,7 +181,9 @@ input[type=checkbox] { accent-color: var(--text-accent); width: 1rem; height: 1r
   .page-heading { flex-wrap: wrap; }.page-heading > .btn-record { width: 100%; }
   .lexicon-controls { flex-direction: column; }.filter-wrap { justify-content: flex-start; }
   .sort-label { margin-left: 0; }.browse-toolbar { gap: var(--space-3); }
-  .list-view .lexicon-card { flex-direction: column; align-items: stretch; }.list-view .word-actions { flex: auto; justify-content: flex-start; }
+  .list-view .lexicon-card { flex-direction: column; align-items: stretch; }
+  .list-view .word-actions { display: flex; grid-template-columns: none; width: 100%; margin-left: 0; margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--border-rule); justify-content: flex-start; gap: var(--space-2); }
+  .list-view .word-cadence { margin-left: auto; width: auto; }
   .card-source-cite { max-width: 100%; }.quiz-setup-group { grid-template-columns: 1fr; }
   .quiz-card,.card-side { padding: var(--space-4); }.review-actions { grid-template-columns: 1fr 1fr; }
   .shelf-row { flex-wrap: wrap; gap: var(--space-3); }.shelf-open { flex-basis: 70%; }
@@ -193,3 +201,8 @@ body[data-view="review"] .colophon, body[data-view="quiz"] .colophon { display: 
 
 .dialog-feedback:not(:empty) { padding: var(--space-4) var(--space-6) 0; color: var(--error-text); font-size: .875rem; }
 .shelf-title { display: block; font: 500 1.5rem/1.2 var(--font-serif); overflow-wrap: anywhere; }
+
+.audio-feedback { flex-basis: 100%; color: var(--text-secondary); font: .75rem/1.4 var(--font-sans); }
+.audio-feedback:empty { display: none; }
+[data-audio-state="loading"] { color: var(--text-secondary); }
+[data-audio-state="playing"] { color: var(--text-accent); }
