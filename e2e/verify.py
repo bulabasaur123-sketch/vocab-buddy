@@ -18,6 +18,16 @@ from playwright.sync_api import sync_playwright, expect
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def wait_for(page, expression, timeout=5):
+    """Poll through CDP evaluation without unsafe-eval or headless animation frames."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if page.evaluate("() => Boolean(" + expression + ")"):
+            return
+        time.sleep(0.02)
+    raise AssertionError("Timed out waiting for " + expression)
+
+
 def word(name="serendipity", due=True):
     return dict(id=name + "_fixture", word=name, displayWord=name.capitalize(),
                 phonetic="/fixture/", audioUrl="", etymology="From Serendip; Horace Walpole.",
@@ -68,7 +78,7 @@ class ElectronVerification(unittest.TestCase):
             time.sleep(0.1)
         cls.page = cls.context.pages[0]
         cls.page.set_default_timeout(2000)
-        cls.page.wait_for_function("typeof window.vocabAPI?.loadWords === 'function'")
+        wait_for(cls.page, "typeof window.vocabAPI?.loadWords === 'function'")
 
     @classmethod
     def stop_process(cls):
@@ -98,7 +108,8 @@ class ElectronVerification(unittest.TestCase):
     def test_bridge_and_storage_roundtrip(self):
         self.assertTrue(self.page.evaluate("typeof require === 'undefined' && typeof process === 'undefined'"))
         self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 21)
-        with sqlite3.connect(Path(self.data.name) / "vocab_buddy.db") as database:
+        from contextlib import closing
+        with closing(sqlite3.connect(Path(self.data.name) / "vocab_buddy.db")) as database:
             self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 3)
             rows = database.execute("SELECT word, meanings_json FROM words").fetchall()
         self.assertEqual(len(rows), 1)
@@ -107,6 +118,7 @@ class ElectronVerification(unittest.TestCase):
         self.assertFalse(self.errors)
 
     def test_lookup_add_duplicate_missing_delete(self):
+        self.page.evaluate("openCapture()")
         self.page.locator("#input-word").fill("Ephemeral")
         self.page.locator("#input-source").fill("Dune Chapter 3")
         self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
@@ -114,13 +126,16 @@ class ElectronVerification(unittest.TestCase):
         expect(self.page.locator("#modal-etymology")).to_contain_text("Horace Walpole")
         expect(self.page.locator("#nav-count-lexicon")).to_have_text("2")
         self.page.locator("#modal-close").dispatch_event("click")
+        self.page.evaluate("openCapture()")
         self.page.locator("#input-word").fill("EPHEMERAL")
         self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
-        expect(self.page.locator("#entry-feedback")).to_contain_text("already recorded")
+        expect(self.page.locator("#app-status")).to_contain_text("already in your lexicon")
         self.page.locator("#modal-close").dispatch_event("click")
+        self.page.evaluate("openCapture()")
         self.page.locator("#input-word").fill("missingword")
         self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
         expect(self.page.locator("#entry-feedback")).to_contain_text("Word not found")
+        self.page.locator("#add-word-close").dispatch_event("click")
         self.page.locator(".lexicon-card").filter(has_text="Ephemeral").dispatch_event("click")
         expect(self.page.locator("#modal-word")).to_have_text("Ephemeral")
         # Native confirm dialogs are unavailable on the headless Ozone backend.
@@ -178,13 +193,13 @@ class ElectronVerification(unittest.TestCase):
     def test_empty_due_queue_does_not_reschedule_future_cards(self):
         self.reset([word(due=False)])
         self.page.locator("#nav-review-btn").dispatch_event("click")
-        self.page.wait_for_function("state.activeView === 'review'")
+        wait_for(self.page, "state.activeView === 'review'")
         self.assertEqual(self.page.evaluate("state.deckQueue.length"), 0)
 
     def test_fast_rating_events_do_not_double_grade_or_skip_cards(self):
         self.reset([word(), word("ephemeral")])
         self.page.locator("#nav-review-btn").dispatch_event("click")
-        self.page.wait_for_function("state.deckQueue.length === 2")
+        wait_for(self.page, "state.deckQueue.length === 2")
         saved = self.page.evaluate("""async () => {
             window.dispatchEvent(new KeyboardEvent('keydown', {code: 'Space'}));
             window.dispatchEvent(new KeyboardEvent('keydown', {key: '3'}));
@@ -196,7 +211,8 @@ class ElectronVerification(unittest.TestCase):
 
     def test_typing_source_does_not_trigger_review_shortcuts(self):
         self.page.locator("#nav-review-btn").dispatch_event("click")
-        self.page.wait_for_function("state.deckQueue.length === 1")
+        wait_for(self.page, "state.deckQueue.length === 1")
+        self.page.evaluate("openCapture()")
         self.page.locator("#input-source").fill("Chapter")
         self.page.locator("#input-source").press("Space")
         self.assertFalse(self.page.evaluate("state.isFlipped"))
@@ -213,6 +229,7 @@ class ElectronVerification(unittest.TestCase):
     def test_feat002_root_lookup_search_and_cadence(self):
         for query, root in [("stymied", "stymie"), ("eking", "eke")]:
             self.reset([])
+            self.page.evaluate("openCapture()")
             self.page.locator("#input-word").fill(query)
             self.page.locator("#entry-form").evaluate("form => form.requestSubmit()")
             expect(self.page.locator("#modal-word")).to_have_text(root.capitalize())
@@ -285,14 +302,14 @@ class ElectronVerification(unittest.TestCase):
     def test_feat004_organization_and_markup(self):
         self.reset(self.quiz_words())
         self.page.locator(".btn-card-fav").first.dispatch_event("click")
-        self.page.wait_for_function("state.words[0].isFavorite === true")
-        self.page.locator("#filter-status").select_option("favorites")
+        wait_for(self.page, "state.words[0].isFavorite === true")
+        self.page.locator("#filter-favorites").check()
         expect(self.page.locator(".lexicon-card")).to_have_count(1)
         self.page.locator("#btn-new-collection").dispatch_event("click")
         payload = '<img src=x onerror="window.__injected=true">'
         self.page.locator("#input-collection-name").fill(payload)
         self.page.locator("#collection-form").evaluate("form => form.requestSubmit()")
-        self.page.wait_for_function("state.collections.length > 0 && state.collectionFilter !== 'all'")
+        wait_for(self.page, "state.collections.length > 0 && state.collectionFilter !== 'all'")
         collection = self.page.evaluate("state.collections.find(c => c.id === state.collectionFilter)")
         try:
             self.page.locator("#filter-collection").select_option("all")
@@ -301,13 +318,13 @@ class ElectronVerification(unittest.TestCase):
             expect(self.page.locator("#modal-collections-list")).to_contain_text(payload)
             self.page.locator("#modal-tag-input").fill("#Archaic")
             self.page.locator("#modal-tag-form").evaluate("form => form.requestSubmit()")
-            self.page.wait_for_function("state.words[0].tags.includes('archaic')")
+            wait_for(self.page, "state.words[0].tags.includes('archaic')")
             expect(self.page.locator("#modal-tags-list")).to_contain_text("#archaic")
             self.assertEqual(self.page.locator("img").count(), 0)
             self.assertIsNone(self.page.evaluate("window.__injected"))
             self.page.locator("#modal-close").dispatch_event("click")
             self.page.reload()
-            self.page.wait_for_function("state.words[0]?.tags.includes('archaic')")
+            wait_for(self.page, "state.words[0]?.tags.includes('archaic')")
             loaded = self.page.evaluate("window.vocabAPI.loadWords()")
             self.assertTrue(loaded[0]["isFavorite"])
             self.assertIn(collection["id"], loaded[0]["collections"])
@@ -332,7 +349,7 @@ class ElectronVerification(unittest.TestCase):
                         self.page.locator("#missing-letters-form").evaluate("form => form.requestSubmit()")
                     else:
                         self.page.locator(".quiz-option-btn").nth(q["correctAnswerIndex"]).dispatch_event("click")
-                    self.page.wait_for_function("!document.querySelector('#quiz-actions').classList.contains('hidden')")
+                    wait_for(self.page, "!document.querySelector('#quiz-actions').classList.contains('hidden')")
                     self.page.locator("#btn-quiz-next").dispatch_event("click")
                 expect(self.page.locator("#quiz-complete-score")).to_contain_text("5 / 5 (100%)")
                 saved = self.page.evaluate("window.vocabAPI.loadWords()")
@@ -361,17 +378,120 @@ class ElectronVerification(unittest.TestCase):
                                dict(ids=[w["id"] for w in entries[:5]], col=collection["id"]))
             self.page.locator("#nav-quiz-btn").dispatch_event("click")
             self.page.locator("#quiz-scope-select").select_option("col:" + collection["id"])
-            self.page.locator("#quiz-link-srs").uncheck()
+            # Ozone's hidden compositor can stall pointer actionability; exercise the
+            # same checkbox change through the DOM while keeping real IPC below.
+            self.page.locator("#quiz-link-srs").evaluate("e => {e.checked=false;e.dispatchEvent(new Event('change'));}")
             self.page.evaluate("startQuizSession()")
             ids = self.page.evaluate("state.quiz.deck.map(q => q.wordId)")
             self.assertEqual(set(ids), {w["id"] for w in entries[:5]})
             q = self.page.evaluate("state.quiz.deck[0]")
             self.page.locator(".quiz-option-btn").nth((q["correctAnswerIndex"] + 1) % 4).dispatch_event("click")
-            self.page.wait_for_function("!document.querySelector('#quiz-actions').classList.contains('hidden')")
+            wait_for(self.page, "!document.querySelector('#quiz-actions').classList.contains('hidden')")
             self.assertTrue(all(w["review"]["reviewCount"] == 0 for w in self.page.evaluate("window.vocabAPI.loadWords()")))
         finally:
             self.page.evaluate("id => window.vocabAPI.deleteCollection(id)", collection["id"])
 
+
+    def test_desktop_library_pagination_search_sort_and_combined_filters(self):
+        entries = [word(f'term{i:04d}') for i in range(1000)]
+        entries[0]['isFavorite'] = True
+        entries[0]['bookSource'] = 'A singular citation'
+        self.reset(entries)
+        expect(self.page.locator('#lexicon-grid')).to_have_class('lexicon-grid list-view')
+        expect(self.page.locator('.lexicon-card')).to_have_count(50)
+        expect(self.page.locator('#page-label')).to_have_text('Page 1 of 20')
+        self.page.locator('#page-next').dispatch_event('click')
+        expect(self.page.locator('.card-title-serif').first).to_have_text('Term0050')
+        self.page.locator('#search-input').fill('singular citation')
+        expect(self.page.locator('.lexicon-card')).to_have_count(1)
+        self.page.locator('#filter-favorites').evaluate("e => {e.checked=true;e.dispatchEvent(new Event('change'));}")
+        self.page.locator('#filter-status').select_option('due')
+        expect(self.page.locator('.lexicon-card')).to_have_count(1)
+        self.page.locator('#filter-status').select_option('mastered')
+        expect(self.page.locator('#lexicon-empty-heading')).to_have_text('No matching words.')
+        self.page.locator('#btn-clear-filters').dispatch_event('click')
+        expect(self.page.locator('.lexicon-card')).to_have_count(50)
+        self.page.locator('#view-grid-btn').dispatch_event('click')
+        self.assertFalse(self.page.evaluate("document.querySelector('#lexicon-grid').classList.contains('list-view')"))
+        self.page.locator('#view-list-btn').dispatch_event('click')
+        self.assertFalse(self.errors)
+
+    def test_desktop_capture_keyboard_and_focus(self):
+        expect(self.page.locator('#add-word-modal')).to_be_hidden()
+        self.page.locator('#btn-add-word').focus()
+        self.page.keyboard.press('Enter')
+        expect(self.page.locator('#input-word')).to_be_focused()
+        self.page.keyboard.press('Shift+Tab')
+        self.page.keyboard.press('Shift+Tab')
+        self.assertTrue(self.page.evaluate("document.querySelector('#add-word-modal').contains(document.activeElement)"))
+        self.page.keyboard.press('Escape')
+        expect(self.page.locator('#add-word-modal')).to_be_hidden()
+        expect(self.page.locator('#btn-add-word')).to_be_focused()
+        self.page.keyboard.press('/')
+        expect(self.page.locator('#search-input')).to_be_focused()
+
+    def test_desktop_review_requires_reveal(self):
+        self.page.locator('#nav-review-btn').dispatch_event('click')
+        expect(self.page.locator('#btn-reveal')).to_be_visible()
+        expect(self.page.locator('#review-actions')).to_be_hidden()
+        self.page.evaluate("submitRating('good')")
+        saved = self.page.evaluate('window.vocabAPI.loadWords()')
+        self.assertEqual(saved[0]['review']['reviewCount'],0)
+        self.page.locator('#btn-reveal').dispatch_event('click')
+        expect(self.page.locator('#review-actions')).to_be_visible()
+        self.page.locator('[data-rating="good"]').dispatch_event('click')
+        expect(self.page.locator('#complete-summary')).to_contain_text('Your review schedule is saved.')
+
+    def test_desktop_quiz_duplicate_next_and_incorrect_summary(self):
+        self.reset(self.quiz_words())
+        self.page.locator('#nav-quiz-btn').dispatch_event('click')
+        self.page.locator('#quiz-link-srs').evaluate("e => {e.checked=false;e.dispatchEvent(new Event('change'));}")
+        self.page.evaluate('startQuizSession()')
+        expect(self.page.locator('#quiz-setup')).to_be_hidden()
+        self.page.evaluate("""() => {
+          const q=state.quiz.deck[0];
+          handleOptionSelected(q,(q.correctAnswerIndex+1)%4);
+          handleOptionSelected(q,(q.correctAnswerIndex+1)%4);
+        }""")
+        wait_for(self.page, 'state.quiz.results.length === 1')
+        self.page.evaluate("() => {document.querySelector('#btn-quiz-next').click();document.querySelector('#btn-quiz-next').click();}")
+        self.assertEqual(self.page.evaluate('state.quiz.index'),1)
+        for i in range(4):
+            self.page.evaluate('async () => {const q=state.quiz.deck[state.quiz.index];await handleOptionSelected(q,q.correctAnswerIndex);}')
+            self.page.locator('#btn-quiz-next').dispatch_event('click')
+        expect(self.page.locator('#quiz-complete-score')).to_contain_text('4 / 5 (80%)')
+        expect(self.page.locator('#quiz-complete-summary')).to_contain_text('was not changed')
+        expect(self.page.locator('#quiz-mistakes p')).to_have_count(1)
+        self.assertTrue(all(w['review']['reviewCount']==0 for w in self.page.evaluate('window.vocabAPI.loadWords()')))
+
+    def test_desktop_shelves_settings_and_long_text_layouts(self):
+        self.page.locator('#nav-shelves-btn').dispatch_event('click')
+        expect(self.page.locator('#view-shelves')).to_be_visible()
+        self.page.locator('#btn-create-shelf').dispatch_event('click')
+        self.page.locator('#input-collection-name').fill('Reading notes')
+        self.page.locator('#collection-form').evaluate('form => form.requestSubmit()')
+        expect(self.page.locator('.shelf-open')).to_contain_text('Reading notes')
+        self.page.locator('.shelf-open').dispatch_event('click')
+        expect(self.page.locator('#filter-collection')).not_to_have_value('all')
+        self.page.locator('#nav-settings-btn').dispatch_event('click')
+        self.page.locator('#reading-size').select_option('large')
+        self.assertTrue(self.page.evaluate("document.body.classList.contains('large-reading')"))
+        self.page.reload(wait_until='networkidle')
+        self.assertTrue(self.page.evaluate("document.body.classList.contains('large-reading')"))
+        # Exercise long unbroken words, wrapping definitions, and a narrow detail panel.
+        entry=word('pneumonoultramicroscopicsilicovolcanoconiosis')
+        entry['meanings'][0]['definitions'][0]['definition']='A lengthy definition. ' * 50
+        self.reset([entry])
+        for width in [1440,1024,768,390]:
+            self.page.set_viewport_size(dict(width=width,height=900))
+            self.page.locator('.word-open').dispatch_event('click')
+            self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'),width)
+            self.page.keyboard.press('Escape')
+        self.page.set_viewport_size(dict(width=1200,height=800))
+        self.page.evaluate("desktopPrefs.set('reading_size','normal')")
+        for c in self.page.evaluate('window.vocabAPI.getCollections()'):
+            self.page.evaluate('id=>window.vocabAPI.deleteCollection(id)',c['id'])
+        self.assertFalse(self.errors)
 
 
 if __name__ == "__main__":

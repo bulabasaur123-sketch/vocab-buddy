@@ -376,6 +376,7 @@ function populateCollectionSelects() {
 
 function renderTagFilterChips() {
   if (!el.tagFilterBar) return;
+  document.getElementById('active-tag').textContent = state.tagFilter ? `· #${state.tagFilter}` : '';
   const tags = state.allTags || [];
   if (tags.length === 0) {
     el.tagFilterBar.classList.add('hidden');
@@ -391,21 +392,23 @@ function renderTagFilterChips() {
     clearBtn.className = 'tag-chip active';
     clearBtn.textContent = `✕ #${state.tagFilter} (Clear)`;
     clearBtn.addEventListener('click', () => {
-      state.tagFilter = null;
+      state.tagFilter = null; state.page = 1;
       renderTagFilterChips();
       renderLexicon();
     });
     el.tagFilterChips.appendChild(clearBtn);
   }
 
-  tags.forEach(({ tag, count }) => {
+  document.getElementById('active-tag').textContent = state.tagFilter ? `· #${state.tagFilter}` : '';
+  const tagQuery = document.getElementById('tag-search').value.trim().toLowerCase();
+  tags.filter(({tag}) => tag.includes(tagQuery)).slice(0, 50).forEach(({ tag, count }) => {
     if (tag === state.tagFilter) return; // already rendered as active filter
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'tag-chip';
     chip.textContent = `#${tag} (${count})`;
     chip.addEventListener('click', () => {
-      state.tagFilter = tag;
+      state.tagFilter = tag; state.page = 1;
       renderTagFilterChips();
       renderLexicon();
     });
@@ -426,6 +429,7 @@ async function refreshAll() {
   populateCollectionSelects();
   renderTagFilterChips();
   renderLexicon();
+  renderShelves();
 }
 
 // ==========================================================================
@@ -433,14 +437,17 @@ async function refreshAll() {
 // ==========================================================================
 function openCollectionModal() {
   if (!el.collectionModal) return;
+  document.getElementById('collection-feedback').textContent = '';
   el.inputCollectionName.value = '';
   el.inputCollectionDesc.value = '';
   el.collectionModal.classList.remove('hidden');
+  state.collectionTrigger = document.activeElement;
   el.inputCollectionName.focus();
 }
 
 function closeCollectionModal() {
   if (el.collectionModal) el.collectionModal.classList.add('hidden');
+  queueMicrotask(() => state.collectionTrigger?.focus());
 }
 
 if (el.btnNewCollection) el.btnNewCollection.addEventListener('click', openCollectionModal);
@@ -463,18 +470,18 @@ if (el.collectionForm) {
       if (window.vocabAPI && window.vocabAPI.createCollection) {
         const created = await window.vocabAPI.createCollection({ name, description });
         closeCollectionModal();
-        state.collectionFilter = created.id;
+        state.collectionFilter = created.id; state.page=1;
         await refreshAll();
       }
     } catch (err) {
-      alert(err.message || 'Failed to create collection shelf.');
+      document.getElementById('collection-feedback').textContent = /UNIQUE/.test(err.message) ? 'A shelf with this name already exists. Choose a different name.' : 'Could not create this shelf. Please try again.';
     }
   });
 }
 
 if (el.filterCollection) {
   el.filterCollection.addEventListener('change', (e) => {
-    state.collectionFilter = e.target.value;
+    state.collectionFilter = e.target.value; state.page = 1;
     renderLexicon();
   });
 }
@@ -493,6 +500,8 @@ el.entryForm.addEventListener('submit', async (e) => {
   const exists = state.words.find(w => w.word.toLowerCase() === rawWord.toLowerCase());
   if (exists) {
     showFeedback(`"${exists.displayWord}" is already recorded in your lexicon.`);
+    closeCapture();
+    announce(`“${exists.displayWord}” is already in your lexicon.`);
     openDetailModal(exists);
     el.inputWord.value = '';
     el.inputSource.value = '';
@@ -517,19 +526,22 @@ el.entryForm.addEventListener('submit', async (e) => {
     await refreshAll();
     showFeedback(`Recorded "${enriched.displayWord}".`);
     const freshlySaved = state.words.find(w => w.word.toLowerCase() === enriched.word.toLowerCase()) || enriched;
+    closeCapture(true);
+    announce(`Saved “${freshlySaved.displayWord}”.`);
     openDetailModal(freshlySaved);
   } catch (err) {
     showFeedback(err.message || 'Lookup failed. Check word spelling.', true);
   } finally {
     setEntryLoading(false);
-    el.inputWord.focus();
+    if (!document.getElementById('add-word-modal').classList.contains('hidden')) el.inputWord.focus();
   }
 });
 
 function setEntryLoading(isLoading) {
   el.btnSubmit.disabled = isLoading;
   el.btnSpinner.classList.toggle('hidden', !isLoading);
-  el.btnText.classList.toggle('hidden', isLoading);
+  el.btnText.textContent = isLoading ? 'Looking up word…' : 'Save Word';
+  el.btnSubmit.setAttribute('aria-busy', String(isLoading));
 }
 
 function showFeedback(msg, isError = false) {
@@ -545,181 +557,7 @@ function hideFeedback() {
 // ==========================================================================
 // Lexicon View: Render Cards & Filter
 // ==========================================================================
-function renderLexicon() {
-  const query = state.searchQuery.toLowerCase().trim();
-  const filter = state.statusFilter;
-  const colFilter = state.collectionFilter;
-  const tagFilter = state.tagFilter;
-  const now = new Date();
-
-  const filtered = state.words.filter(w => {
-    if (query) {
-      const matchWord = (w.word || '').toLowerCase().includes(query);
-      const matchDisplay = (w.displayWord || '').toLowerCase().includes(query);
-      const matchInflected = (w.inflectedForm || '').toLowerCase().includes(query);
-      const matchSource = (w.bookSource || '').toLowerCase().includes(query);
-      const matchDef = (w.meanings || []).some(m =>
-        (m.definitions || []).some(d => (d.definition || '').toLowerCase().includes(query))
-      );
-      const matchTags = (w.tags || []).some(t => t.toLowerCase().includes(query));
-      if (!matchWord && !matchDisplay && !matchInflected && !matchSource && !matchDef && !matchTags) return false;
-    }
-
-    // Status filter
-    if (filter === 'favorites') {
-      if (!w.isFavorite) return false;
-    } else {
-      const box = w.review?.box || 1;
-      const isDue = w.review?.nextReviewDate ? new Date(w.review.nextReviewDate) <= now : true;
-      if (filter === 'due' && !isDue) return false;
-      if (filter === 'learning' && box >= 5) return false;
-      if (filter === 'mastered' && box < 5) return false;
-    }
-
-    // Collection filter
-    if (colFilter !== 'all') {
-      if (!Array.isArray(w.collections) || !w.collections.includes(colFilter)) return false;
-    }
-
-    // Tag filter
-    if (tagFilter) {
-      if (!Array.isArray(w.tags) || !w.tags.includes(tagFilter)) return false;
-    }
-
-    return true;
-  });
-
-  el.lexiconGrid.innerHTML = '';
-
-  if (filtered.length === 0) {
-    el.lexiconEmpty.classList.remove('hidden');
-    el.lexiconGrid.classList.add('hidden');
-    return;
-  }
-
-  el.lexiconEmpty.classList.add('hidden');
-  el.lexiconGrid.classList.remove('hidden');
-
-  filtered.forEach(word => {
-    const card = document.createElement('article');
-    card.className = 'lexicon-card';
-
-    const firstMeaning = word.meanings?.[0] || { partOfSpeech: 'word', definitions: [{ definition: '' }] };
-    const pos = firstMeaning.partOfSpeech || '';
-    const def = firstMeaning.definitions?.[0]?.definition || '';
-    const example = firstMeaning.definitions?.[0]?.example || '';
-    const box = word.review?.box || 1;
-    const boxLabel = word.review?.boxLabel || getBoxLabel(box);
-    const isMastered = box >= 5;
-    const isInflected = word.inflectedForm && word.inflectedForm.toLowerCase() !== word.word.toLowerCase();
-    const hasAudio = hasAudioRecord(word);
-    const isFav = Boolean(word.isFavorite);
-
-    card.innerHTML = `
-      <div class="card-mast">
-        <h3 class="card-title-serif">${escapeHtml(word.displayWord)}</h3>
-        <div class="card-mast-actions">
-          <button type="button" class="btn-icon-fav btn-card-fav ${isFav ? 'active' : ''}" title="${isFav ? 'Remove from favorites' : 'Mark as favorite'}" aria-label="Favorite">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-          </button>
-          <button type="button" class="box-stamp btn-stamp-trigger ${isMastered ? 'mastered' : ''}" title="View Leitner cadence guide">Box ${box} · ${escapeHtml(boxLabel)}</button>
-        </div>
-      </div>
-
-      <div class="phonetic-row">
-        ${pos ? `<span class="pos-stamp">${escapeHtml(pos)}</span>` : ''}
-        ${pos && word.phonetic ? `<span class="pos-divider" aria-hidden="true">·</span>` : ''}
-        <span class="phonetic-mono">${escapeHtml(word.phonetic || '')}</span>
-        <button type="button" class="btn-icon-audio btn-card-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen to pronunciation' : 'No audio recording archived'}">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-          </svg>
-        </button>
-      </div>
-
-      ${isInflected ? `<p class="card-inflected-cite">Encountered as: <em>${escapeHtml(word.inflectedForm)}</em></p>` : ''}
-
-      <p class="card-definition">${escapeHtml(def)}</p>
-
-      ${example ? `<div class="card-quote-preview">"${escapeHtml(example)}"</div>` : ''}
-
-      ${((word.collections && word.collections.length > 0) || (word.tags && word.tags.length > 0)) ? `
-        <div class="card-taxonomies">
-          ${(word.collections || []).map(cid => {
-            const col = (state.collections || []).find(c => c.id === cid);
-            return col ? `<span class="badge-collection">${escapeHtml(col.name)}</span>` : '';
-          }).join('')}
-          ${(word.tags || []).map(t => `<span class="badge-tag" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join('')}
-        </div>
-      ` : ''}
-
-      <div class="card-foot">
-        <span class="card-source-cite">${word.bookSource ? `Ref: ${escapeHtml(word.bookSource)}` : ''}</span>
-        <span>${formatNextReview(word.review?.nextReviewDate)}</span>
-      </div>
-    `;
-
-    // Favorite toggle button
-    const favBtn = card.querySelector('.btn-card-fav');
-    if (favBtn) {
-      favBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (window.vocabAPI && window.vocabAPI.toggleFavorite) {
-          try {
-            await window.vocabAPI.toggleFavorite(word.id);
-            await refreshAll();
-          } catch (err) {
-            console.error('Error toggling favorite:', err);
-          }
-        }
-      });
-    }
-
-    // Tag badge click toggles tag filter
-    card.querySelectorAll('.badge-tag').forEach(tagEl => {
-      tagEl.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const tag = tagEl.getAttribute('data-tag');
-        state.tagFilter = state.tagFilter === tag ? null : tag;
-        renderTagFilterChips();
-        renderLexicon();
-      });
-    });
-
-    // Box cadence stamp trigger
-    const stampBtn = card.querySelector('.btn-stamp-trigger');
-    if (stampBtn) {
-      stampBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openCadenceModal(stampBtn);
-      });
-    }
-
-    // Audio button click
-    const audioBtn = card.querySelector('.btn-card-audio');
-    if (!hasAudio && window.vocabAPI && window.vocabAPI.getAudioDataUrl && word.word) {
-      window.vocabAPI.getAudioDataUrl(word.word).then(dataUrl => {
-        if (dataUrl) updateAudioButtonState(audioBtn, true);
-      }).catch(() => {});
-    }
-    audioBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (!audioBtn.disabled) {
-        playAudio(word.audioUrl, word.word, audioBtn);
-      }
-    });
-
-    // Card click opens modal
-    card.addEventListener('click', () => {
-      openDetailModal(word);
-    });
-
-    el.lexiconGrid.appendChild(card);
-  });
-}
+function renderLexicon() { renderDesktopLibrary(); }
 
 function formatNextReview(dateStr) {
   if (!dateStr) return 'Due today';
@@ -732,12 +570,12 @@ function formatNextReview(dateStr) {
 }
 
 el.searchInput.addEventListener('input', (e) => {
-  state.searchQuery = e.target.value;
+  state.searchQuery = e.target.value; state.page = 1;
   renderLexicon();
 });
 
 el.filterStatus.addEventListener('change', (e) => {
-  state.statusFilter = e.target.value;
+  state.statusFilter = e.target.value; state.page = 1;
   renderLexicon();
 });
 
@@ -745,6 +583,7 @@ el.filterStatus.addEventListener('change', (e) => {
 // Word Detail Modal
 // ==========================================================================
 function openDetailModal(word) {
+  state.detailTrigger = document.activeElement;
   state.selectedWord = word;
   el.modalWord.textContent = word.displayWord;
   el.modalPhonetic.textContent = word.phonetic || '';
@@ -820,6 +659,10 @@ function openDetailModal(word) {
   el.modalScheduleStamp.textContent = formatNextReview(word.review?.nextReviewDate);
 
   el.detailModal.classList.remove('hidden');
+  document.body.classList.add('detail-open');
+  for (const row of el.lexiconGrid.children) row.classList.toggle('selected',row.dataset.wordId === word.id);
+  el.modalFavBtn.setAttribute('aria-pressed', String(isFav));
+  el.modalClose.focus();
 }
 
 function renderModalCollections(word) {
@@ -930,6 +773,7 @@ if (el.modalFavBtn) {
     if (window.vocabAPI && window.vocabAPI.toggleFavorite) {
       const newState = await window.vocabAPI.toggleFavorite(state.selectedWord.id);
       state.selectedWord.isFavorite = newState;
+      el.modalFavBtn.setAttribute('aria-pressed',String(newState));
       el.modalFavBtn.classList.toggle('active', Boolean(newState));
       const svg = el.modalFavBtn.querySelector('svg');
       if (svg) svg.setAttribute('fill', newState ? 'currentColor' : 'none');
@@ -944,6 +788,9 @@ el.modalBoxStamp.addEventListener('click', () => {
 
 function closeDetailModal() {
   if (el.detailModal) el.detailModal.classList.add('hidden');
+  document.body.classList.remove('detail-open');
+  for (const row of el.lexiconGrid.children) row.classList.remove('selected');
+  if (state.detailTrigger?.isConnected) state.detailTrigger.focus(); else if (state.activeView === 'lexicon') el.searchInput.focus();
 }
 
 el.modalClose.addEventListener('click', closeDetailModal);
@@ -976,7 +823,7 @@ el.modalDeleteBtn.addEventListener('click', async () => {
 async function startReviewSession() {
   const dueQueue = await fetchDueQueue();
   state.deckQueue = dueQueue;
-  state.deckIndex = 0;
+  state.deckIndex = 0; state.reviewResults = [];
   state.isFlipped = false;
 
   if (state.deckQueue.length === 0) {
@@ -991,6 +838,9 @@ async function startReviewSession() {
   el.reviewActions.classList.remove('hidden');
   el.deckComplete.classList.add('hidden');
   el.indexCard.classList.remove('flipped');
+  el.reviewActions.classList.add('hidden');
+  el.indexCard.querySelector('.card-front').inert = false;
+  el.indexCard.querySelector('.card-back').inert = true;
 
   showDeckCard();
 }
@@ -998,6 +848,9 @@ async function startReviewSession() {
 function showDeckCard() {
   state.isFlipped = false;
   el.indexCard.classList.remove('flipped');
+  el.reviewActions.classList.add('hidden');
+  el.indexCard.querySelector('.card-front').inert = false;
+  el.indexCard.querySelector('.card-back').inert = true;
 
   const current = state.deckQueue[state.deckIndex];
   if (!current) {
@@ -1005,7 +858,8 @@ function showDeckCard() {
     el.indexCard.parentElement.classList.add('hidden');
     el.reviewActions.classList.add('hidden');
     el.deckComplete.classList.remove('hidden');
-    el.completeSummary.textContent = `Completed review of ${state.deckQueue.length} vocabulary slips today.`;
+    const again = state.reviewResults.filter(r => r === 'again').length;
+    el.completeSummary.textContent = `Reviewed ${state.deckQueue.length} words. ${again} marked Again; ${state.deckQueue.length - again} retained. Your review schedule is saved.`;
     return;
   }
 
@@ -1078,8 +932,13 @@ el.cardFrontBox.addEventListener('click', (e) => {
 });
 
 function flipCard() {
-  state.isFlipped = !state.isFlipped;
+  if (state.isFlipped || !state.deckQueue[state.deckIndex]) return;
+  state.isFlipped = true;
   el.indexCard.classList.toggle('flipped', state.isFlipped);
+  el.indexCard.querySelector('.card-front').inert = true;
+  el.indexCard.querySelector('.card-back').inert = false;
+  el.reviewActions.classList.remove('hidden');
+  el.reviewActions.querySelector('button').focus();
 }
 
 el.indexCard.addEventListener('click', flipCard);
@@ -1105,7 +964,7 @@ el.reviewActions.querySelectorAll('.btn-rate').forEach(btn => {
 });
 
 async function submitRating(rating) {
-  if (state.isSubmittingRating) return;
+  if (state.isSubmittingRating || !state.isFlipped) return;
   state.isSubmittingRating = true;
   try {
     const current = state.deckQueue[state.deckIndex];
@@ -1115,9 +974,12 @@ async function submitRating(rating) {
       await window.vocabAPI.reviewWord(current.id, rating);
     }
 
+    state.reviewResults.push(rating);
     state.deckIndex++;
     showDeckCard();
     await refreshAll();
+  } catch {
+    announce('Could not save the review. Keep this card open and try again.', true);
   } finally {
     state.isSubmittingRating = false;
   }
@@ -1127,6 +989,7 @@ async function submitRating(rating) {
 // Active Retention Quiz Controller
 // ==========================================================================
 function initQuizView() {
+  document.getElementById('quiz-setup').classList.remove('hidden');
   if (el.quizArena) el.quizArena.classList.add('hidden');
   if (el.quizComplete) el.quizComplete.classList.add('hidden');
   if (el.quizEmptyNotice) el.quizEmptyNotice.classList.add('hidden');
@@ -1137,6 +1000,10 @@ if (el.btnQuizRestart) el.btnQuizRestart.addEventListener('click', () => startQu
 if (el.btnQuizToLexicon) el.btnQuizToLexicon.addEventListener('click', () => switchView('lexicon'));
 
 async function startQuizSession() {
+  if (state.quiz.isSubmitting || state.quiz.isGenerating) return;
+  if (!el.quizArena.classList.contains('hidden') && !confirm('Start a new quiz? Answers already saved will keep their review updates.')) return;
+  state.quiz.isGenerating = true;
+  el.btnStartQuiz.disabled = true;
   const mode = el.quizModeSelect.value;
   const scopeVal = el.quizScopeSelect.value;
   const limit = parseInt(el.quizLimitSelect.value, 10) || 5;
@@ -1155,9 +1022,11 @@ async function startQuizSession() {
       questions = await window.vocabAPI.generateQuiz(mode, filter);
     }
   } catch (err) {
-    console.error('Quiz generation error:', err);
+    announce('Could not start the quiz. Try again.', true);
+    state.quiz.isGenerating=false; el.btnStartQuiz.disabled=false; return;
   }
 
+  state.quiz.isGenerating=false; el.btnStartQuiz.disabled=false;
   if (!questions || questions.length === 0) {
     el.quizArena.classList.add('hidden');
     el.quizComplete.classList.add('hidden');
@@ -1178,8 +1047,9 @@ async function startQuizSession() {
     score: 0,
     mode,
     isAnswered: false,
-    linkToSrs
+    linkToSrs, results: [], isSubmitting: false
   };
+  document.getElementById('quiz-setup').classList.add('hidden');
 
   el.quizEmptyNotice.classList.add('hidden');
   el.quizComplete.classList.add('hidden');
@@ -1196,6 +1066,7 @@ function renderCurrentQuizQuestion() {
   }
 
   state.quiz.isAnswered = false;
+  el.btnQuizNext.disabled=true;
   el.quizActions.classList.add('hidden');
 
   const total = state.quiz.deck.length;
@@ -1233,7 +1104,7 @@ function renderDefinitionQuestion(q) {
     <div class="quiz-prompt-header">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
         <h2 class="quiz-target-word">${escapeHtml(q.prompt)}</h2>
-        <button type="button" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
+        <button type="button" aria-label="Play pronunciation" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -1318,7 +1189,7 @@ function renderMissingLettersQuestion(q) {
     <div class="missing-letters-masked">${escapeHtml(q.maskedWord)}</div>
     <div class="phonetic-row" style="justify-content: center; margin-bottom: 0.5rem;">
       <span class="phonetic-mono">${escapeHtml(q.phonetic || '')}</span>
-      <button type="button" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
+      <button type="button" aria-label="Play pronunciation" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
           <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -1328,7 +1199,7 @@ function renderMissingLettersQuestion(q) {
     <p class="missing-letters-definition">"${escapeHtml(q.definition)}"</p>
 
     <form class="missing-letters-form" id="missing-letters-form">
-      <input type="text" class="entry-input missing-letters-input" id="input-missing-letters" placeholder="Type full word..." autocomplete="off">
+      <label for="input-missing-letters" class="sr-only">Full word</label><input type="text" class="entry-input missing-letters-input" id="input-missing-letters" placeholder="Type full word..." autocomplete="off">
       <button type="submit" class="btn-record">Verify</button>
     </form>
   `;
@@ -1379,47 +1250,36 @@ async function handleOptionSelected(q, selectedIndex) {
       playAudio(targetWord.audioUrl, targetWord.word, null);
     }
   } else {
-    showQuizFeedback(false, `✗ Incorrect. Correct: "${escapeHtml(q.options[q.correctAnswerIndex])}"`);
+    showQuizFeedback(false, `✗ Incorrect. Correct: "${q.options[q.correctAnswerIndex]}"`);
   }
 
-  // Update SRS cadence if enabled
-  if (window.vocabAPI && window.vocabAPI.submitQuiz) {
-    try {
-      await window.vocabAPI.submitQuiz(q.wordId, isCorrect, state.quiz.linkToSrs);
-    } catch (err) {
-      console.error('Error submitting quiz result:', err);
-    }
-  }
-
-  el.quizActions.classList.remove('hidden');
-  el.btnQuizNext.focus();
+  await saveQuizAnswer(q, isCorrect, q.options[selectedIndex]);
 }
 
 async function handleMissingLettersResult(q, isCorrect, inputEl) {
+  if (state.quiz.isAnswered) return;
   state.quiz.isAnswered = true;
   inputEl.disabled = true;
+  if (isCorrect) state.quiz.score++;
+  showQuizFeedback(isCorrect, isCorrect ? 'Correct recall.' : `The word was “${q.solution}”.`);
+  await saveQuizAnswer(q, isCorrect, inputEl.value);
+}
 
-  if (isCorrect) {
-    state.quiz.score++;
-    showQuizFeedback(true, `✓ Exact match: "${escapeHtml(q.solution)}"`);
-    const targetWord = state.words.find(w => w.id === q.wordId);
-    if (targetWord && hasAudioRecord(targetWord)) {
-      playAudio(targetWord.audioUrl, targetWord.word, null);
-    }
-  } else {
-    showQuizFeedback(false, `✗ Word was: "${escapeHtml(q.solution)}"`);
+async function saveQuizAnswer(q, success, givenAnswer) {
+  state.quiz.isSubmitting = true;
+  let saved = false;
+  try {
+    await window.vocabAPI.submitQuiz(q.wordId, success, state.quiz.linkToSrs);
+    saved = true;
+  } catch {
+    announce('The answer could not be saved. Its review schedule may be unchanged. You can continue the quiz.', true);
+  } finally {
+    state.quiz.results.push({wordId:q.wordId, success, givenAnswer, correct:q.mode === 'missing_letters' ? q.solution : q.options[q.correctAnswerIndex], saved});
+    state.quiz.isSubmitting = false;
+    el.btnQuizNext.disabled=false;
+    el.quizActions.classList.remove('hidden');
+    el.btnQuizNext.focus();
   }
-
-  if (window.vocabAPI && window.vocabAPI.submitQuiz) {
-    try {
-      await window.vocabAPI.submitQuiz(q.wordId, isCorrect, state.quiz.linkToSrs);
-    } catch (err) {
-      console.error('Error submitting quiz result:', err);
-    }
-  }
-
-  el.quizActions.classList.remove('hidden');
-  el.btnQuizNext.focus();
 }
 
 function showQuizFeedback(isCorrect, message) {
@@ -1428,6 +1288,8 @@ function showQuizFeedback(isCorrect, message) {
 }
 
 el.btnQuizNext.addEventListener('click', () => {
+  if (!state.quiz.isAnswered || state.quiz.isSubmitting) return;
+  state.quiz.isAnswered = false;
   state.quiz.index++;
   if (state.quiz.index < state.quiz.deck.length) {
     renderCurrentQuizQuestion();
@@ -1446,16 +1308,17 @@ async function showQuizComplete() {
 
   el.quizCompleteScore.textContent = `Score: ${score} / ${total} (${pct}%)`;
 
-  let summary = '';
-  if (pct === 100) {
-    summary = 'Flawless recall. All tested vocabulary slips consolidated in memory.';
-  } else if (pct >= 70) {
-    summary = 'Strong retention across tested entries. Scheduled cadences adjusted.';
-  } else {
-    summary = 'Several words need reinforcement. They have been scheduled for review in your Review Deck.';
+  const saved = state.quiz.results.filter(r => r.saved).length;
+  el.quizCompleteSummary.textContent = state.quiz.linkToSrs
+    ? `${saved} of ${total} review updates saved. Incorrect answers are due for review today.`
+    : 'Practice complete. Your review schedule was not changed.';
+  const mistakes = document.getElementById('quiz-mistakes'); mistakes.replaceChildren();
+  for (const answer of state.quiz.results.filter(r => !r.success)) {
+    const item = document.createElement('p');
+    const word = state.words.find(w => w.id === answer.wordId);
+    item.textContent = `${word?.displayWord || 'Word'} — Your answer: ${answer.givenAnswer || '(blank)'}. Correct answer: ${answer.correct}`;
+    mistakes.appendChild(item);
   }
-  el.quizCompleteSummary.textContent = summary;
-
   // Refresh stats in background
   await refreshAll();
 }
@@ -1493,7 +1356,7 @@ window.addEventListener('keydown', (e) => {
 
   // Review Deck keyboard handling
   if (state.activeView === 'review' && !el.indexCard.parentElement.classList.contains('hidden')) {
-    if (e.code === 'Space') {
+    if (!state.isFlipped && (e.code === 'Space' || e.key === 'Enter' && e.target === el.indexCard)) {
       e.preventDefault();
       flipCard();
     } else if (state.isFlipped) {
@@ -1548,7 +1411,8 @@ function closeCadenceModal() {
   // Restore keyboard focus to the triggering element
   if (cadenceReturnFocusElement && typeof cadenceReturnFocusElement.focus === 'function' && document.contains(cadenceReturnFocusElement)) {
     try {
-      cadenceReturnFocusElement.focus();
+      const target = cadenceReturnFocusElement;
+      queueMicrotask(() => target.focus());
     } catch { /* ignore */ }
   }
   cadenceReturnFocusElement = null;
@@ -1597,30 +1461,28 @@ if (el.navQuizBtn) el.navQuizBtn.addEventListener('click', () => switchView('qui
 el.btnReturnLexicon.addEventListener('click', () => switchView('lexicon'));
 
 function switchView(viewName) {
+  if ((state.quiz.isSubmitting || state.isSubmittingRating) && viewName !== state.activeView) { announce('Please wait while your answer is saved.'); return; }
+  closeDetailModal();
   state.activeView = viewName;
-
-  el.navLexiconBtn.classList.toggle('active', viewName === 'lexicon');
-  el.navReviewBtn.classList.toggle('active', viewName === 'review');
-  if (el.navQuizBtn) el.navQuizBtn.classList.toggle('active', viewName === 'quiz');
-
-  el.viewLexicon.classList.toggle('active', viewName === 'lexicon');
-  el.viewLexicon.classList.toggle('hidden', viewName !== 'lexicon');
-
-  el.viewReview.classList.toggle('active', viewName === 'review');
-  el.viewReview.classList.toggle('hidden', viewName !== 'review');
-
-  if (el.viewQuiz) {
-    el.viewQuiz.classList.toggle('active', viewName === 'quiz');
-    el.viewQuiz.classList.toggle('hidden', viewName !== 'quiz');
+  document.body.dataset.view = viewName;
+  for (const name of ['lexicon','review','quiz','shelves','settings']) {
+    const button = document.getElementById(`nav-${name}-btn`);
+    button.classList.toggle('active', name === viewName);
+    if (name === viewName) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current');
+    const panel = document.getElementById(`view-${name}`);
+    panel.classList.toggle('active',name === viewName); panel.classList.toggle('hidden',name !== viewName);
   }
-
-  if (viewName === 'lexicon') {
-    renderLexicon();
-  } else if (viewName === 'review') {
-    startReviewSession();
-  } else if (viewName === 'quiz') {
-    initQuizView();
+  document.querySelector('.sidebar').classList.remove('menu-open'); document.getElementById('nav-menu').setAttribute('aria-expanded','false');
+  if (viewName === 'lexicon') renderLexicon();
+  if (viewName === 'review') {
+    if (state.deckQueue.length && state.deckIndex < state.deckQueue.length) showDeckCard();
+    else startReviewSession();
   }
+  if (viewName === 'quiz') {
+    if (state.quiz.deck.length && state.quiz.index < state.quiz.deck.length) { el.quizArena.classList.remove('hidden'); document.getElementById('quiz-setup').classList.add('hidden'); }
+    else initQuizView();
+  }
+  if (viewName === 'shelves') renderShelves();
 }
 
 // ==========================================================================
@@ -1656,5 +1518,7 @@ function escapeHtml(str) {
 // Boot
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
-  refreshAll();
+  setupDesktop();
+  announce('Loading your lexicon…');
+  refreshAll().then(() => announce('')).catch(() => announce('Could not load your library. Reopen the application to retry.', true));
 });

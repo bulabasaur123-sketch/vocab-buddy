@@ -5,110 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' data: https: http:; img-src 'self' data: https:; script-src 'self';">
   <title>Vocab Buddy — Personal Lexicon</title>
-  
+
   <!-- Typography: Editorial Serif (Newsreader), Grotesque Sans (Inter), Technical Monospace (JetBrains Mono) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
-  
+
   <link rel="stylesheet" href="src/styles/main.css">
+  <link rel="stylesheet" href="src/styles/desktop.css">
 </head>
 <body class="theme-paper">
   <div class="site-wrapper">
 
-    <!-- Masthead -->
-    <header class="masthead">
-      <div class="masthead-left">
-        <span class="masthead-title">Vocab Buddy</span>
-        <span class="masthead-divider">/</span>
-        <span class="masthead-tagline">Personal Reading Lexicon</span>
-      </div>
-
-      <nav class="masthead-nav">
-        <button id="nav-lexicon-btn" class="nav-link active" type="button">
-          Lexicon
-          <span id="nav-count-lexicon" class="counter-badge">0</span>
-        </button>
-        <button id="nav-review-btn" class="nav-link" type="button">
-          Review Deck
-          <span id="nav-count-due" class="counter-badge alert">0</span>
-        </button>
-        <button id="nav-quiz-btn" class="nav-link" type="button">
-          Active Quiz
-        </button>
+    <a href="#main-content" class="skip-link">Skip to content</a>
+    <aside class="sidebar" aria-label="Application navigation">
+      <a class="brand" href="#lexicon" id="brand-home">Vocab Buddy<span>A personal lexicon</span></a>
+      <button id="nav-menu" class="btn-subtle" aria-expanded="false" aria-controls="primary-nav">Menu</button>
+      <nav id="primary-nav" class="primary-nav" aria-label="Main">
+        <button id="nav-lexicon-btn" class="nav-link active" aria-current="page">Lexicon <span id="nav-count-lexicon" class="counter-badge">0</span></button>
+        <button id="nav-review-btn" class="nav-link">Review Deck <span id="nav-count-due" class="counter-badge">0</span></button>
+        <button id="nav-quiz-btn" class="nav-link">Active Quiz</button>
+        <button id="nav-shelves-btn" class="nav-link">Shelves</button>
+        <button id="nav-settings-btn" class="nav-link nav-settings">Settings</button>
       </nav>
-
-      <div class="masthead-right">
-        <button id="btn-cadence-guide" class="btn-subtle" type="button" title="View Leitner memory cadence guide">
-          Cadence Guide
-        </button>
-        <button id="btn-theme-toggle" class="btn-subtle" type="button" title="Toggle light/dark theme">
-          <span class="theme-label-light">Midnight</span>
-          <span class="theme-label-dark">Daylight</span>
-        </button>
-        <button id="btn-export" class="btn-subtle" type="button" title="Export library as JSON file">
-          Export
-        </button>
-      </div>
-    </header>
-
-    <!-- Reader's Entry Bar -->
-    <section class="entry-strip">
-      <form id="entry-form" class="entry-form">
-        <div class="field-cluster">
-          <label for="input-word" class="field-label">Word</label>
-          <input 
-            type="text" 
-            id="input-word" 
-            class="entry-input word-input" 
-            placeholder="e.g. petrichor, ephemeral, serendipity" 
-            required 
-            autocomplete="off" 
-            autofocus
-          >
-        </div>
-
-        <div class="field-cluster source-cluster">
-          <label for="input-source" class="field-label">Source Citation (Optional)</label>
-          <input 
-            type="text" 
-            id="input-source" 
-            class="entry-input source-input" 
-            placeholder="e.g. Dune, Chapter 3" 
-            autocomplete="off"
-          >
-        </div>
-
-        <button type="submit" id="btn-submit" class="btn-record">
-          <span class="btn-text">Record Word</span>
-          <span class="btn-spinner hidden"></span>
-        </button>
-      </form>
-      <div id="entry-feedback" class="entry-feedback hidden"></div>
-    </section>
-
+      <p class="sidebar-note">Collect words.<br>Return to them.</p>
+    </aside>
     <!-- Main Content Area -->
-    <main class="content-body">
+    <main id="main-content" class="content-body" tabindex="-1">
+      <div id="app-status" class="app-status hidden" role="status" aria-live="polite"></div>
 
       <!-- VIEW 1: Lexicon (Library) -->
-      <section id="view-lexicon" class="view-panel active">
-        
+      <section id="view-lexicon" class="view-panel active" aria-labelledby="lexicon-title">
+        <header class="page-heading"><div><p class="eyebrow">Your reading, remembered</p><h1 id="lexicon-title">Lexicon</h1><p class="page-description">A place for the words you want to keep.</p></div><button id="btn-add-word" class="btn-record">Add Word <kbd>N</kbd></button></header>
+
         <div class="lexicon-controls">
-          <div class="search-wrap">
-            <input 
-              type="search" 
-              id="search-input" 
-              class="search-input" 
-              placeholder="Search words, definitions, or citations..." 
+          <div class="search-wrap"><label for="search-input" class="sr-only">Search words, definitions, or citations</label>
+            <input
+              type="search"
+              id="search-input"
+              class="search-input"
+              placeholder="Search words, definitions, or citations..."
               autocomplete="off"
             >
           </div>
 
           <div class="filter-wrap">
-            <label for="filter-status" class="filter-label">Filter:</label>
+            <label for="filter-status" class="filter-label">Review</label>
             <select id="filter-status" class="filter-select">
-              <option value="all">Entire Collection</option>
-              <option value="favorites">⭐ Favorites Only</option>
+              <option value="all">All words</option>
+
               <option value="due">Due for Review</option>
               <option value="learning">In Learning (Boxes 1–4)</option>
               <option value="mastered">Mastered (Box 5)</option>
@@ -116,7 +61,7 @@
           </div>
 
           <div class="filter-wrap collection-filter-wrap">
-            <label for="filter-collection" class="filter-label">Collection:</label>
+            <label for="filter-collection" class="filter-label">Shelf</label>
             <select id="filter-collection" class="filter-select">
               <option value="all">All Shelves</option>
             </select>
@@ -124,12 +69,21 @@
           </div>
         </div>
 
+        <div class="browse-toolbar">
+          <label class="check-label"><input id="filter-favorites" type="checkbox"> Favorites only</label>
+          <label class="sort-label" for="sort-words">Sort <select id="sort-words" class="filter-select"><option value="alpha">A–Z</option><option value="newest">Date added: newest</option><option value="review">Next review</option></select></label>
+          <div class="view-switch" role="group" aria-label="Vocabulary view"><button id="view-list-btn" class="btn-subtle" aria-pressed="true">List</button><button id="view-grid-btn" class="btn-subtle" aria-pressed="false">Grid</button></div>
+          <button id="btn-clear-filters" class="btn-subtle">Clear filters</button>
+        </div>
+        <details class="tag-disclosure"><summary>Filter by tag <span id="active-tag"></span></summary><label for="tag-search" class="sr-only">Find a tag</label><input id="tag-search" class="entry-input" type="search" placeholder="Find a tag…">
         <!-- Tag Filter Chips Bar -->
         <div id="tag-filter-bar" class="tag-filter-bar hidden">
           <span class="tag-filter-label">Tags:</span>
           <div id="tag-filter-chips" class="tag-chips-wrap"></div>
         </div>
 
+        </details>
+        <p id="result-count" class="result-count" role="status"></p>
         <!-- Lexicon Cards Grid -->
         <div id="lexicon-grid" class="lexicon-grid">
           <!-- Populated dynamically -->
@@ -137,16 +91,18 @@
 
         <!-- Empty State -->
         <div id="lexicon-empty" class="empty-notice hidden">
-          <p class="empty-heading">Lexicon is currently empty.</p>
-          <p class="empty-sub">Enter any word encountered while reading above to log definitions, origin notes, and pronunciation.</p>
+          <p id="lexicon-empty-heading" class="empty-heading">Your lexicon starts here.</p>
+          <p id="lexicon-empty-sub" class="empty-sub">Add a word to keep its meaning, pronunciation, and source.</p>
         </div>
 
+        <nav class="pagination" aria-label="Vocabulary pages"><button id="page-prev" class="btn-subtle">Previous</button><span id="page-label"></span><button id="page-next" class="btn-subtle">Next</button></nav>
       </section>
 
       <!-- VIEW 2: Review Deck (Spaced Repetition Flashcards) -->
       <section id="view-review" class="view-panel hidden">
+        <header class="page-heading"><div><p class="eyebrow">Make room for recall</p><h1>Review Deck</h1><p class="page-description">One word at a time. Reveal the meaning when you are ready.</p></div></header>
         <div class="deck-stage">
-          
+
           <div class="deck-header">
             <div class="deck-tally-wrap">
               <span class="deck-heading">Review Session</span>
@@ -159,8 +115,8 @@
 
           <!-- Physical Index Card -->
           <div class="index-card-wrapper">
-            <div id="index-card" class="index-card" tabindex="0" role="button" aria-label="Vocabulary index card. Click or press space to flip.">
-              
+            <div id="index-card" class="index-card" tabindex="0" aria-label="Vocabulary review card">
+
               <!-- Front Side -->
               <div class="card-side card-front">
                 <div class="card-meta-top">
@@ -183,7 +139,7 @@
                 </div>
 
                 <div class="card-footer-hint">
-                  <span>Press <kbd>Space</kbd> or click card to reveal definitions</span>
+                  <button id="btn-reveal" class="btn-record" type="button">Reveal meaning <kbd>Space</kbd></button>
                 </div>
               </div>
 
@@ -263,10 +219,11 @@
 
       <!-- VIEW 3: Active Retention Quiz -->
       <section id="view-quiz" class="view-panel hidden">
+        <header class="page-heading"><div><p class="eyebrow">Put words into practice</p><h1>Active Quiz</h1><p class="page-description">Choose a way to test what you remember.</p></div></header>
         <div class="quiz-stage">
-          
+
           <!-- Quiz Setup Bar -->
-          <div class="quiz-header-bar">
+          <div id="quiz-setup" class="quiz-header-bar">
             <div class="quiz-setup-group">
               <div class="field-cluster">
                 <label for="quiz-mode-select" class="field-label">Mode</label>
@@ -281,7 +238,7 @@
                 <label for="quiz-scope-select" class="field-label">Scope</label>
                 <select id="quiz-scope-select" class="entry-input select-scope">
                   <option value="all">Entire Lexicon</option>
-                  <option value="favorites">⭐ Favorites Only</option>
+                  <option value="favorites">Favorites only</option>
                 </select>
               </div>
 
@@ -301,13 +258,13 @@
             <div class="quiz-srs-toggle">
               <label class="toggle-label" title="When enabled, answering correctly advances the word's Leitner box; answering incorrectly resets it for review today.">
                 <input type="checkbox" id="quiz-link-srs" checked>
-                <span>Link to Leitner cadence</span>
+                <span>Update review schedule</span>
               </label>
             </div>
           </div>
 
           <!-- Active Question Arena -->
-          <div id="quiz-arena" class="quiz-arena hidden">
+          <div id="quiz-arena" class="quiz-arena hidden"><div class="session-tools"><span>Recall practice</span><button id="btn-quiz-exit" class="btn-subtle">End quiz</button></div>
             <div class="deck-header quiz-deck-header">
               <div class="deck-tally-wrap">
                 <span id="quiz-badge-mode" class="box-stamp">Definition Match</span>
@@ -331,7 +288,7 @@
 
             <!-- Next Action Bar -->
             <div id="quiz-actions" class="quiz-actions hidden">
-              <div id="quiz-feedback-banner" class="quiz-feedback-banner"></div>
+              <div id="quiz-feedback-banner" class="quiz-feedback-banner" role="status" aria-live="polite"></div>
               <button type="button" id="btn-quiz-next" class="btn-record btn-quiz-next">
                 Next Question →
               </button>
@@ -344,6 +301,7 @@
             <h3 id="quiz-complete-title" class="complete-title">Retention Quiz Finished</h3>
             <p id="quiz-complete-score" class="complete-score">Final Score: 4 / 5 (80%)</p>
             <p id="quiz-complete-summary" class="complete-text">Vocabulary retention performance recorded.</p>
+            <div id="quiz-mistakes" class="quiz-mistakes"></div>
             <div class="complete-actions">
               <button type="button" id="btn-quiz-restart" class="btn-record">
                 Take Another Quiz
@@ -363,6 +321,17 @@
         </div>
       </section>
 
+      <section id="view-shelves" class="view-panel hidden" aria-labelledby="shelves-title">
+        <header class="page-heading"><div><p class="eyebrow">Give your words a home</p><h1 id="shelves-title">Shelves</h1><p class="page-description">Organize by book, subject, or the way you use a word.</p></div><button id="btn-create-shelf" class="btn-record">New shelf</button></header>
+        <label for="shelf-search" class="sr-only">Search shelves</label><input id="shelf-search" class="search-input" type="search" placeholder="Find a shelf…">
+        <div id="shelves-list" class="shelves-list"></div>
+      </section>
+      <section id="view-settings" class="view-panel hidden" aria-labelledby="settings-title">
+        <header class="page-heading"><div><p class="eyebrow">Make yourself at home</p><h1 id="settings-title">Settings</h1><p class="page-description">Reading preferences and your library.</p></div></header>
+        <div class="settings-section"><h2>Appearance</h2><p>Choose a comfortable reading environment.</p><button id="btn-theme-toggle" class="btn-subtle"><span class="theme-label-light">Use dark appearance</span><span class="theme-label-dark">Use light appearance</span></button><label for="reading-size">Reading size</label><select id="reading-size" class="filter-select"><option value="normal">Standard</option><option value="large">Large</option></select></div>
+        <div class="settings-section"><h2>Your library</h2><p>Export your vocabulary as a JSON file. Shelf definitions are not included in this export.</p><button id="btn-export" class="btn-subtle">Export vocabulary</button></div>
+        <div class="settings-section"><h2>Learning & keyboard</h2><p>Review uses five Leitner boxes. Correct recall moves a word further from its next review.</p><button id="btn-cadence-guide" class="btn-subtle">How review scheduling works</button><dl class="shortcut-list"><dt>N</dt><dd>Add a word from Lexicon</dd><dt>/</dt><dd>Search Lexicon</dd><dt>Space / Enter</dt><dd>Reveal a review card</dd><dt>1–4</dt><dd>Grade a revealed card or answer a quiz</dd><dt>Escape</dt><dd>Close a dialog or word detail</dd></dl></div>
+      </section>
     </main>
 
     <!-- Reader's Colophon / Footer -->
@@ -375,10 +344,41 @@
       </div>
     </footer>
 
+    <div id="add-word-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="add-word-title"><div class="modal-folio capture-folio"><header class="modal-folio-header"><div><p class="eyebrow">From your reading</p><h2 id="add-word-title">Add a word</h2></div><button id="add-word-close" class="modal-btn-close" aria-label="Close Add Word">×</button></header><section class="entry-strip">      <form id="entry-form" class="entry-form">
+        <div class="field-cluster">
+          <label for="input-word" class="field-label">Word</label>
+          <input
+            type="text"
+            id="input-word"
+            class="entry-input word-input"
+            placeholder="e.g. petrichor, ephemeral, serendipity"
+            required
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="field-cluster source-cluster">
+          <label for="input-source" class="field-label">Source Citation (Optional)</label>
+          <input
+            type="text"
+            id="input-source"
+            class="entry-input source-input"
+            placeholder="e.g. Dune, Chapter 3"
+            autocomplete="off"
+          >
+        </div>
+
+        <button type="submit" id="btn-submit" class="btn-record">
+          <span class="btn-text">Save Word</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
+      </form>
+      <div id="entry-feedback" class="entry-feedback hidden" role="status" aria-live="polite"></div>
+</section></div></div>
     <!-- Word Detail Modal -->
-    <div id="detail-modal" class="modal-scrim hidden" role="dialog" aria-modal="true">
+    <div id="detail-modal" class="modal-scrim hidden" role="region" aria-labelledby="modal-word">
       <div class="modal-folio">
-        
+
         <div class="modal-folio-header">
           <div>
             <div class="modal-heading-row">
@@ -390,7 +390,7 @@
                   <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
                 </svg>
               </button>
-              <button type="button" id="modal-fav-btn" class="btn-icon-fav" title="Toggle favorite">
+              <button type="button" id="modal-fav-btn" aria-label="Favorite word" aria-pressed="false" class="btn-icon-fav" title="Toggle favorite">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                 </svg>
@@ -404,20 +404,20 @@
 
         <div class="modal-folio-body">
           <div class="folio-section">
-            <h4 class="folio-subheading">Origin & Etymological Roots</h4>
-            <div id="modal-etymology" class="folio-etymology-prose"></div>
+            <h4 class="folio-subheading">Definitions & Contextual Usage</h4>
+            <div id="modal-meanings" class="folio-meanings-list"></div>
           </div>
 
           <div class="folio-section">
-            <h4 class="folio-subheading">Definitions & Contextual Usage</h4>
-            <div id="modal-meanings" class="folio-meanings-list"></div>
+            <h4 class="folio-subheading">Origin & Etymological Roots</h4>
+            <div id="modal-etymology" class="folio-etymology-prose"></div>
           </div>
 
           <div class="folio-section" id="modal-collections-section">
             <h4 class="folio-subheading">Shelves & Collections</h4>
             <div id="modal-collections-list" class="chip-row"></div>
             <div class="collection-assign-row">
-              <select id="modal-add-collection-select" class="filter-select select-assign-col">
+              <label for="modal-add-collection-select" class="sr-only">Assign to shelf</label><select id="modal-add-collection-select" class="filter-select select-assign-col">
                 <option value="">+ Assign to Shelf...</option>
               </select>
             </div>
@@ -427,7 +427,7 @@
             <h4 class="folio-subheading">Semantic Tags</h4>
             <div id="modal-tags-list" class="chip-row"></div>
             <form id="modal-tag-form" class="tag-input-form">
-              <input type="text" id="modal-tag-input" class="entry-input tag-input-field" placeholder="Add tag (e.g. latin, formal)..." autocomplete="off">
+              <label for="modal-tag-input" class="sr-only">Add a tag</label><input type="text" id="modal-tag-input" class="entry-input tag-input-field" placeholder="Add tag (e.g. latin, formal)..." autocomplete="off">
               <button type="submit" class="btn-subtle btn-add-tag">+ Tag</button>
             </form>
           </div>
@@ -454,7 +454,7 @@
     <!-- Leitner Cadence Guide Modal -->
     <div id="cadence-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="cadence-modal-title">
       <div class="modal-folio cadence-folio">
-        
+
         <div class="modal-folio-header">
           <div>
             <div class="modal-heading-row">
@@ -470,7 +470,7 @@
           <div class="folio-section">
             <h4 class="folio-subheading">The Five Memory Tiers</h4>
             <div class="cadence-ladder">
-              
+
               <div class="cadence-step">
                 <div class="cadence-step-header">
                   <span class="box-stamp">Box 1 · Daily</span>
@@ -548,7 +548,7 @@
     <!-- Create Collection Modal -->
     <div id="collection-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="collection-modal-title">
       <div class="modal-folio collection-modal-folio">
-        
+
         <div class="modal-folio-header">
           <div>
             <h2 id="collection-modal-title" class="modal-title-serif">New Collection Shelf</h2>
@@ -557,7 +557,7 @@
           <button type="button" id="collection-modal-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
         </div>
 
-        <form id="collection-form" class="collection-form">
+        <form id="collection-form" class="collection-form"><p id="collection-feedback" class="dialog-feedback" role="status" aria-live="polite"></p>
           <div class="modal-folio-body">
             <div class="field-cluster">
               <label for="input-collection-name" class="field-label">Shelf Name</label>
@@ -580,6 +580,7 @@
 
   </div>
 
+  <script src="src/ui/desktop.js"></script>
   <script src="src/renderer.js"></script>
 </body>
 </html>
