@@ -11,14 +11,15 @@ function shuffle(items) {
 }
 class QuizEngine {
   constructor(storage) { this.db = storage.db ?? storage; }
-  generateQuiz(mode, { collectionId = null, tag = null, limit = 5 } = {}) {
+  generateQuiz(mode, { collectionId = null, tag = null, favoritesOnly = false, limit = 5 } = {}) {
     if (!['definition', 'cloze', 'missing_letters'].includes(mode)) throw new TypeError('Invalid quiz mode');
     if (!Number.isInteger(limit) || limit < 5 || limit > 10) throw new TypeError('Quiz limit must be between 5 and 10');
-    if (collectionId !== null && typeof collectionId !== 'string' || tag !== null && typeof tag !== 'string') throw new TypeError('Invalid quiz filter');
+    if (collectionId !== null && typeof collectionId !== 'string' || tag !== null && typeof tag !== 'string' || typeof favoritesOnly !== 'boolean') throw new TypeError('Invalid quiz filter');
     const rows = this.db.prepare(`SELECT w.id, w.word, w.phonetic, w.meanings_json FROM words w
       WHERE (? IS NULL OR EXISTS (SELECT 1 FROM word_collections c WHERE c.word_id = w.id AND c.collection_id = ?))
       AND (? IS NULL OR EXISTS (SELECT 1 FROM word_tags t WHERE t.word_id = w.id AND t.tag = ?))
-      ORDER BY RANDOM()`).iterate(collectionId, collectionId, tag, tag === null ? null : normalizeTag(tag));
+      AND (? = 0 OR w.is_favorite = 1)
+      ORDER BY RANDOM()`).iterate(collectionId, collectionId, tag, tag === null ? null : normalizeTag(tag), favoritesOnly ? 1 : 0);
     const questions = [];
     for (const row of rows) {
       const meanings = JSON.parse(row.meanings_json);

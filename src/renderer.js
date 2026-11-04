@@ -1145,6 +1145,8 @@ async function startQuizSession() {
   const filter = { limit };
   if (scopeVal.startsWith('col:')) {
     filter.collectionId = scopeVal.slice(4);
+  } else if (scopeVal === 'favorites') {
+    filter.favoritesOnly = true;
   }
 
   let questions = [];
@@ -1154,13 +1156,6 @@ async function startQuizSession() {
     }
   } catch (err) {
     console.error('Quiz generation error:', err);
-  }
-
-  if (scopeVal === 'favorites') {
-    questions = (questions || []).filter(q => {
-      const w = state.words.find(word => word.id === q.wordId);
-      return w && (w.isFavorite === 1 || w.isFavorite === true);
-    });
   }
 
   if (!questions || questions.length === 0) {

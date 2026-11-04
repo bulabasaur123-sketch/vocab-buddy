@@ -103,6 +103,9 @@ test('all quiz modes track targets and provide valid unique answers; filters int
   s.setWordTags(words[0].id, ['quiz']); s.setWordTags(words[2].id, ['quiz']);
   const deck = engine.generateQuiz('definition', { collectionId: col.id, tag: '#QUIZ' });
   assert.equal(deck.length, 1); assert.equal(deck[0].wordId, words[0].id);
+  s.toggleFavorite(words[0].id);
+  const favDeck = engine.generateQuiz('definition', { favoritesOnly: true, limit: 5 });
+  assert.equal(favDeck.length, 1); assert.equal(favDeck[0].wordId, words[0].id);
   assert.throws(() => engine.generateQuiz('bogus')); assert.throws(() => engine.generateQuiz('cloze', { limit: 100 }));
   assert.equal(engine.cloze('Taciturnity is taciturn.', 'taciturn'), 'Taciturnity is _______.');
   assert.equal(new QuizEngine(s.db).generateQuiz('definition', { limit: 10 }).length, 6);

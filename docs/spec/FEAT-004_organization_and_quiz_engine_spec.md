@@ -3,7 +3,7 @@ title: "Vocab Buddy: Organization Suite & Active Retention Quiz Engine (FEAT-004
 type: prd_and_spec
 feature_code: FEAT-004
 status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-04
 updated_at: 2026-11-04
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-04
 # Feature Specification: FEAT-004 Organization Suite & Active Retention Quiz Engine
 
 > **Feature Code:** FEAT-004  
-> **Active Stage:** Stage 4 Gate Failed — Frontend Repair Required (Gemini)  
+> **Active Stage:** Stage 4 Re-run Ready — Favorites Scope Regression Repaired  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -123,9 +123,9 @@ class QuizEngine {
   /**
    * Generates a 5 to 10 question quiz deck.
    * @param {('definition'|'cloze'|'missing_letters')} mode
-   * @param {Object} [filter] - { collectionId, tag, limit }
+   * @param {Object} [filter] - { collectionId, tag, favoritesOnly, limit }
    */
-  generateQuiz(mode, { collectionId = null, tag = null, limit = 5 } = {})
+  generateQuiz(mode, { collectionId = null, tag = null, favoritesOnly = false, limit = 5 } = {})
 }
 ```
 
@@ -261,6 +261,15 @@ When a quiz question is answered correctly with linkToSrs = true
 Then the word is promoted to Box 3
 ```
 
+### Scenario 7: Favorites Scope Quiz Invariant
+```gherkin
+Given a library with 100 words where only 5 are marked as favorites
+When generateQuiz("definition", { favoritesOnly: true, limit: 5 }) is called
+Then exactly 5 questions are generated
+And all 5 target words have is_favorite = 1
+And distractors are sampled globally across the whole library
+```
+
 ---
 
 ## 6. Handoff Checklist (Stage 1 $\rightarrow$ Stage 2)
@@ -318,3 +327,16 @@ Verification evidence was committed in `9615085` before this handoff update.
 See [the full Stage 4 report](../../e2e/FEAT-004-verification.md) for security
 coverage, reproduction commands and limitations. Gemini owns the frontend repair;
 rerun Stage 4 and set `ready_to_ship` only after the regression passes.
+
+
+## 9. Frontend Repair for Favorites Quiz Sampling (Gemini)
+
+- **Root Cause:** `src/renderer.js` previously fetched a limited random deck (5 words) from the whole library and post-filtered for favorites, causing short decks when favorites were a small fraction of total words.
+- **Backend Contract Extension:** Updated `QuizEngine.generateQuiz` to accept validated `favoritesOnly: boolean` filter. Target rows are filtered in SQL (`AND (? = 0 OR w.is_favorite = 1)`) prior to `limit` truncation, while distractors remain sampled globally across all words.
+- **Frontend Alignment:** `src/renderer.js` now passes `{ favoritesOnly: true, limit }` directly to IPC and eliminates post-filtering.
+- **Verification:**
+  - `npm test`: 57/57 unit tests pass (including new favorite filter test).
+  - `npm run lint` and `npm run build`: Clean pass.
+  - `e2e/verify.py`: 18/18 Real Electron Playwright E2E tests pass (regression `test_feat004_favorites_scope_fills_requested_deck` passes).
+  - Handoff to Codex for final Stage 4 re-verification gate.
+
