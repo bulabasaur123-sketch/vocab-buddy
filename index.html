@@ -33,6 +33,9 @@
           Review Deck
           <span id="nav-count-due" class="counter-badge alert">0</span>
         </button>
+        <button id="nav-quiz-btn" class="nav-link" type="button">
+          Active Quiz
+        </button>
       </nav>
 
       <div class="masthead-right">
@@ -105,11 +108,26 @@
             <label for="filter-status" class="filter-label">Filter:</label>
             <select id="filter-status" class="filter-select">
               <option value="all">Entire Collection</option>
+              <option value="favorites">⭐ Favorites Only</option>
               <option value="due">Due for Review</option>
               <option value="learning">In Learning (Boxes 1–4)</option>
               <option value="mastered">Mastered (Box 5)</option>
             </select>
           </div>
+
+          <div class="filter-wrap collection-filter-wrap">
+            <label for="filter-collection" class="filter-label">Collection:</label>
+            <select id="filter-collection" class="filter-select">
+              <option value="all">All Shelves</option>
+            </select>
+            <button type="button" id="btn-new-collection" class="btn-subtle btn-new-shelf" title="Create a new collection shelf">+ Shelf</button>
+          </div>
+        </div>
+
+        <!-- Tag Filter Chips Bar -->
+        <div id="tag-filter-bar" class="tag-filter-bar hidden">
+          <span class="tag-filter-label">Tags:</span>
+          <div id="tag-filter-chips" class="tag-chips-wrap"></div>
         </div>
 
         <!-- Lexicon Cards Grid -->
@@ -243,6 +261,108 @@
         </div>
       </section>
 
+      <!-- VIEW 3: Active Retention Quiz -->
+      <section id="view-quiz" class="view-panel hidden">
+        <div class="quiz-stage">
+          
+          <!-- Quiz Setup Bar -->
+          <div class="quiz-header-bar">
+            <div class="quiz-setup-group">
+              <div class="field-cluster">
+                <label for="quiz-mode-select" class="field-label">Mode</label>
+                <select id="quiz-mode-select" class="entry-input select-mode">
+                  <option value="definition">Definition Match</option>
+                  <option value="cloze">Sentence Fill-in-the-Blank</option>
+                  <option value="missing_letters">Missing Letters</option>
+                </select>
+              </div>
+
+              <div class="field-cluster">
+                <label for="quiz-scope-select" class="field-label">Scope</label>
+                <select id="quiz-scope-select" class="entry-input select-scope">
+                  <option value="all">Entire Lexicon</option>
+                  <option value="favorites">⭐ Favorites Only</option>
+                </select>
+              </div>
+
+              <div class="field-cluster">
+                <label for="quiz-limit-select" class="field-label">Count</label>
+                <select id="quiz-limit-select" class="entry-input select-limit">
+                  <option value="5">5 Questions</option>
+                  <option value="10">10 Questions</option>
+                </select>
+              </div>
+
+              <button type="button" id="btn-start-quiz" class="btn-record btn-start-quiz">
+                Begin Quiz
+              </button>
+            </div>
+
+            <div class="quiz-srs-toggle">
+              <label class="toggle-label" title="When enabled, answering correctly advances the word's Leitner box; answering incorrectly resets it for review today.">
+                <input type="checkbox" id="quiz-link-srs" checked>
+                <span>Link to Leitner cadence</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Active Question Arena -->
+          <div id="quiz-arena" class="quiz-arena hidden">
+            <div class="deck-header quiz-deck-header">
+              <div class="deck-tally-wrap">
+                <span id="quiz-badge-mode" class="box-stamp">Definition Match</span>
+                <span id="quiz-progress-text" class="deck-step">Question 1 of 5</span>
+              </div>
+              <div class="quiz-score-badge">
+                Score: <span id="quiz-score-text">0 / 0</span>
+              </div>
+            </div>
+
+            <div class="deck-progress-track">
+              <div id="quiz-progress-bar" class="deck-progress-fill" style="width: 20%;"></div>
+            </div>
+
+            <!-- Question Card Container -->
+            <div class="index-card-wrapper quiz-card-wrapper">
+              <div id="quiz-card" class="index-card quiz-card">
+                <div id="quiz-card-content" class="quiz-card-body"></div>
+              </div>
+            </div>
+
+            <!-- Next Action Bar -->
+            <div id="quiz-actions" class="quiz-actions hidden">
+              <div id="quiz-feedback-banner" class="quiz-feedback-banner"></div>
+              <button type="button" id="btn-quiz-next" class="btn-record btn-quiz-next">
+                Next Question →
+              </button>
+            </div>
+          </div>
+
+          <!-- Quiz Completed Summary Screen -->
+          <div id="quiz-complete" class="deck-complete-card hidden">
+            <span class="box-stamp mastered" style="margin-bottom: 0.75rem;">Session Complete</span>
+            <h3 id="quiz-complete-title" class="complete-title">Retention Quiz Finished</h3>
+            <p id="quiz-complete-score" class="complete-score">Final Score: 4 / 5 (80%)</p>
+            <p id="quiz-complete-summary" class="complete-text">Vocabulary retention performance recorded.</p>
+            <div class="complete-actions">
+              <button type="button" id="btn-quiz-restart" class="btn-record">
+                Take Another Quiz
+              </button>
+              <button type="button" id="btn-quiz-to-lexicon" class="btn-subtle">
+                Return to Lexicon
+              </button>
+            </div>
+          </div>
+
+          <!-- Quiz Empty Notice -->
+          <div id="quiz-empty-notice" class="empty-notice hidden">
+            <p class="empty-heading">Not Enough Words for Quiz</p>
+            <p id="quiz-empty-sub" class="empty-sub">You need at least 4 words recorded in your lexicon (with definitions and examples) to generate this quiz.</p>
+          </div>
+
+        </div>
+      </section>
+
     </main>
 
     <!-- Reader's Colophon / Footer -->
@@ -270,6 +390,11 @@
                   <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
                 </svg>
               </button>
+              <button type="button" id="modal-fav-btn" class="btn-icon-fav" title="Toggle favorite">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+              </button>
             </div>
             <p id="modal-inflected" class="modal-inflected-cite hidden"></p>
             <p id="modal-source" class="modal-source-text"></p>
@@ -286,6 +411,25 @@
           <div class="folio-section">
             <h4 class="folio-subheading">Definitions & Contextual Usage</h4>
             <div id="modal-meanings" class="folio-meanings-list"></div>
+          </div>
+
+          <div class="folio-section" id="modal-collections-section">
+            <h4 class="folio-subheading">Shelves & Collections</h4>
+            <div id="modal-collections-list" class="chip-row"></div>
+            <div class="collection-assign-row">
+              <select id="modal-add-collection-select" class="filter-select select-assign-col">
+                <option value="">+ Assign to Shelf...</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="folio-section" id="modal-tags-section">
+            <h4 class="folio-subheading">Semantic Tags</h4>
+            <div id="modal-tags-list" class="chip-row"></div>
+            <form id="modal-tag-form" class="tag-input-form">
+              <input type="text" id="modal-tag-input" class="entry-input tag-input-field" placeholder="Add tag (e.g. latin, formal)..." autocomplete="off">
+              <button type="submit" class="btn-subtle btn-add-tag">+ Tag</button>
+            </form>
           </div>
 
           <div class="folio-section" id="modal-synonyms-section">
@@ -397,6 +541,39 @@
           <span class="cadence-footer-note">Shortcut: Press <kbd>Space</kbd> during review sessions to flip the vocabulary slip.</span>
           <button type="button" id="cadence-btn-dismiss" class="btn-subtle">Close Guide</button>
         </div>
+
+      </div>
+    </div>
+
+    <!-- Create Collection Modal -->
+    <div id="collection-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="collection-modal-title">
+      <div class="modal-folio collection-modal-folio">
+        
+        <div class="modal-folio-header">
+          <div>
+            <h2 id="collection-modal-title" class="modal-title-serif">New Collection Shelf</h2>
+            <p class="modal-source-text">Curate words by context, genre, or everyday usage.</p>
+          </div>
+          <button type="button" id="collection-modal-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
+        </div>
+
+        <form id="collection-form" class="collection-form">
+          <div class="modal-folio-body">
+            <div class="field-cluster">
+              <label for="input-collection-name" class="field-label">Shelf Name</label>
+              <input type="text" id="input-collection-name" class="entry-input" placeholder="e.g. Daily Speech, Gothic Novels, Work Vocabulary" required autocomplete="off">
+            </div>
+            <div class="field-cluster" style="margin-top: 1rem;">
+              <label for="input-collection-desc" class="field-label">Description (Optional)</label>
+              <input type="text" id="input-collection-desc" class="entry-input" placeholder="e.g. Words for essays and critiques" autocomplete="off">
+            </div>
+          </div>
+
+          <div class="modal-folio-footer">
+            <button type="button" id="collection-btn-cancel" class="btn-subtle">Cancel</button>
+            <button type="submit" class="btn-record">Create Shelf</button>
+          </div>
+        </form>
 
       </div>
     </div>

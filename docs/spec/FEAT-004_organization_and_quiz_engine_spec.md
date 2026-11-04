@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Organization Suite & Active Retention Quiz Engine (FEAT-004)"
 type: prd_and_spec
 feature_code: FEAT-004
-status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-04
 updated_at: 2026-11-04
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-04
 # Feature Specification: FEAT-004 Organization Suite & Active Retention Quiz Engine
 
 > **Feature Code:** FEAT-004  
-> **Active Stage:** Stage 2 Complete — Ready for Frontend (Gemini Stage 3)  
+> **Active Stage:** Stage 3 Complete — Ready for Verification Gate (Codex Stage 4)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -270,3 +270,28 @@ Then the word is promoted to Box 3
 - [x] Gherkin acceptance criteria defined for Codex test coverage.
 - [x] Architecture verified to require zero native build dependencies.
 - [x] Status set to `ready_for_backend`.
+
+
+## 7. Stage 3 Frontend Integration Summary (Gemini)
+
+Frontend implementation completed:
+- **Navigation:** Added third primary view tab `[ Active Quiz ]` to the masthead with view switching.
+- **Favorites (⭐):** 
+  - Integrated 1-click favorite button on every card and in the word detail modal.
+  - Added "⭐ Favorites Only" option to the library filter dropdown.
+- **Collections (Shelves):**
+  - Collection filter dropdown + "+ Shelf" creation modal.
+  - Collection badges on cards and assignment/removal UI in detail modal.
+- **Semantic Tags:**
+  - Interactive `#tag` filter bar at the top of the lexicon.
+  - Tag chips on cards (click to filter) and tag editing in detail modal.
+- **Active Retention Quiz Arena (`#view-quiz`):**
+  - Mode selector (`Definition Match`, `Sentence Cloze`, `Missing Letters`).
+  - Scope selector (`All`, `Favorites`, or specific collection shelf).
+  - Leitner cadence update toggle (`quiz-link-srs`).
+  - Keyboard navigation: options `1`–`4`, `Enter` to verify, `Space`/`Enter` for next question.
+  - Audio playback on correct answer if audio archived.
+  - Summary card with score percentage and review cadence summary.
+- **Anti-Slop Design Compliance:** Strictly adheres to [DESIGN.md](file:///home/zeto/Desktop/projects/Vocab%20Buddy/DESIGN.md) (Newsreader serif, Inter grotesque, JetBrains Mono, archival paper palette).
+- **Verification:** `npm test` passes (57/57), `npm run lint` and `npm run build` pass cleanly.
+

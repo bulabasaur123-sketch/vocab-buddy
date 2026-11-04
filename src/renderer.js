@@ -8,15 +8,27 @@
 // Global state
 const state = {
   words: [],
-  activeView: 'lexicon', // 'lexicon' | 'review'
+  collections: [],
+  allTags: [],
+  activeView: 'lexicon', // 'lexicon' | 'review' | 'quiz'
   searchQuery: '',
-  statusFilter: 'all', // 'all' | 'due' | 'learning' | 'mastered'
+  statusFilter: 'all', // 'all' | 'favorites' | 'due' | 'learning' | 'mastered'
+  collectionFilter: 'all', // 'all' | collectionId
+  tagFilter: null, // null | string
   deckQueue: [],
   deckIndex: 0,
   isFlipped: false,
   selectedWord: null,
   activeAudio: null,
-  theme: 'paper' // 'paper' | 'dark'
+  theme: 'paper', // 'paper' | 'dark'
+  quiz: {
+    deck: [],
+    index: 0,
+    score: 0,
+    mode: 'definition',
+    isAnswered: false,
+    linkToSrs: true
+  }
 };
 
 // DOM Elements
@@ -24,6 +36,7 @@ const el = {
   // Masthead & Nav
   navLexiconBtn: document.getElementById('nav-lexicon-btn'),
   navReviewBtn: document.getElementById('nav-review-btn'),
+  navQuizBtn: document.getElementById('nav-quiz-btn'),
   navCountLexicon: document.getElementById('nav-count-lexicon'),
   navCountDue: document.getElementById('nav-count-due'),
   btnThemeToggle: document.getElementById('btn-theme-toggle'),
@@ -42,10 +55,15 @@ const el = {
   // Views
   viewLexicon: document.getElementById('view-lexicon'),
   viewReview: document.getElementById('view-review'),
+  viewQuiz: document.getElementById('view-quiz'),
 
   // Lexicon View
   searchInput: document.getElementById('search-input'),
   filterStatus: document.getElementById('filter-status'),
+  filterCollection: document.getElementById('filter-collection'),
+  btnNewCollection: document.getElementById('btn-new-collection'),
+  tagFilterBar: document.getElementById('tag-filter-bar'),
+  tagFilterChips: document.getElementById('tag-filter-chips'),
   lexiconGrid: document.getElementById('lexicon-grid'),
   lexiconEmpty: document.getElementById('lexicon-empty'),
 
@@ -79,10 +97,16 @@ const el = {
   modalInflected: document.getElementById('modal-inflected'),
   modalPhonetic: document.getElementById('modal-phonetic'),
   modalAudioBtn: document.getElementById('modal-audio-btn'),
+  modalFavBtn: document.getElementById('modal-fav-btn'),
   modalSource: document.getElementById('modal-source'),
   modalClose: document.getElementById('modal-close'),
   modalEtymology: document.getElementById('modal-etymology'),
   modalMeanings: document.getElementById('modal-meanings'),
+  modalCollectionsList: document.getElementById('modal-collections-list'),
+  modalAddCollectionSelect: document.getElementById('modal-add-collection-select'),
+  modalTagsList: document.getElementById('modal-tags-list'),
+  modalTagForm: document.getElementById('modal-tag-form'),
+  modalTagInput: document.getElementById('modal-tag-input'),
   modalSynonymsSection: document.getElementById('modal-synonyms-section'),
   modalSynonyms: document.getElementById('modal-synonyms'),
   modalBoxStamp: document.getElementById('modal-box-stamp'),
@@ -92,7 +116,40 @@ const el = {
   // Cadence Guide Modal
   cadenceModal: document.getElementById('cadence-modal'),
   cadenceModalClose: document.getElementById('cadence-modal-close'),
-  cadenceBtnDismiss: document.getElementById('cadence-btn-dismiss')
+  cadenceBtnDismiss: document.getElementById('cadence-btn-dismiss'),
+
+  // Collection Modal
+  collectionModal: document.getElementById('collection-modal'),
+  collectionModalClose: document.getElementById('collection-modal-close'),
+  collectionForm: document.getElementById('collection-form'),
+  inputCollectionName: document.getElementById('input-collection-name'),
+  inputCollectionDesc: document.getElementById('input-collection-desc'),
+  collectionBtnCancel: document.getElementById('collection-btn-cancel'),
+
+  // Quiz View
+  quizModeSelect: document.getElementById('quiz-mode-select'),
+  quizScopeSelect: document.getElementById('quiz-scope-select'),
+  quizLimitSelect: document.getElementById('quiz-limit-select'),
+  btnStartQuiz: document.getElementById('btn-start-quiz'),
+  quizLinkSrs: document.getElementById('quiz-link-srs'),
+  quizArena: document.getElementById('quiz-arena'),
+  quizBadgeMode: document.getElementById('quiz-badge-mode'),
+  quizProgressText: document.getElementById('quiz-progress-text'),
+  quizScoreText: document.getElementById('quiz-score-text'),
+  quizProgressBar: document.getElementById('quiz-progress-bar'),
+  quizCard: document.getElementById('quiz-card'),
+  quizCardContent: document.getElementById('quiz-card-content'),
+  quizActions: document.getElementById('quiz-actions'),
+  quizFeedbackBanner: document.getElementById('quiz-feedback-banner'),
+  btnQuizNext: document.getElementById('btn-quiz-next'),
+  quizComplete: document.getElementById('quiz-complete'),
+  quizCompleteTitle: document.getElementById('quiz-complete-title'),
+  quizCompleteScore: document.getElementById('quiz-complete-score'),
+  quizCompleteSummary: document.getElementById('quiz-complete-summary'),
+  btnQuizRestart: document.getElementById('btn-quiz-restart'),
+  btnQuizToLexicon: document.getElementById('btn-quiz-to-lexicon'),
+  quizEmptyNotice: document.getElementById('quiz-empty-notice'),
+  quizEmptySub: document.getElementById('quiz-empty-sub')
 };
 
 // Box Cadence Helper
@@ -250,6 +307,28 @@ async function fetchWords() {
   return raw ? JSON.parse(raw) : [];
 }
 
+async function fetchCollections() {
+  if (window.vocabAPI && window.vocabAPI.getCollections) {
+    try {
+      return await window.vocabAPI.getCollections();
+    } catch (err) {
+      console.error('Error fetching collections:', err);
+    }
+  }
+  return [];
+}
+
+async function fetchTags() {
+  if (window.vocabAPI && window.vocabAPI.getAllTags) {
+    try {
+      return await window.vocabAPI.getAllTags();
+    } catch (err) {
+      console.error('Error fetching tags:', err);
+    }
+  }
+  return [];
+}
+
 async function fetchStats() {
   if (window.vocabAPI && window.vocabAPI.getReviewStats) {
     return window.vocabAPI.getReviewStats();
@@ -264,15 +343,140 @@ async function fetchDueQueue() {
   return state.words.slice(0, 10);
 }
 
+function populateCollectionSelects() {
+  if (!el.filterCollection) return;
+  const currentFilter = state.collectionFilter;
+
+  // 1. Lexicon Collection Filter
+  el.filterCollection.innerHTML = '<option value="all">All Shelves</option>';
+  (state.collections || []).forEach(col => {
+    const opt = document.createElement('option');
+    opt.value = col.id;
+    opt.textContent = `${col.name} (${col.wordCount || 0})`;
+    el.filterCollection.appendChild(opt);
+  });
+  el.filterCollection.value = currentFilter;
+
+  // 2. Quiz Scope Dropdown
+  if (el.quizScopeSelect) {
+    const currentScope = el.quizScopeSelect.value || 'all';
+    el.quizScopeSelect.innerHTML = `
+      <option value="all">Entire Lexicon</option>
+      <option value="favorites">⭐ Favorites Only</option>
+    `;
+    (state.collections || []).forEach(col => {
+      const opt = document.createElement('option');
+      opt.value = `col:${col.id}`;
+      opt.textContent = `Shelf: ${col.name} (${col.wordCount || 0})`;
+      el.quizScopeSelect.appendChild(opt);
+    });
+    el.quizScopeSelect.value = currentScope;
+  }
+}
+
+function renderTagFilterChips() {
+  if (!el.tagFilterBar) return;
+  const tags = state.allTags || [];
+  if (tags.length === 0) {
+    el.tagFilterBar.classList.add('hidden');
+    return;
+  }
+
+  el.tagFilterBar.classList.remove('hidden');
+  el.tagFilterChips.innerHTML = '';
+
+  if (state.tagFilter) {
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'tag-chip active';
+    clearBtn.textContent = `✕ #${state.tagFilter} (Clear)`;
+    clearBtn.addEventListener('click', () => {
+      state.tagFilter = null;
+      renderTagFilterChips();
+      renderLexicon();
+    });
+    el.tagFilterChips.appendChild(clearBtn);
+  }
+
+  tags.forEach(({ tag, count }) => {
+    if (tag === state.tagFilter) return; // already rendered as active filter
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'tag-chip';
+    chip.textContent = `#${tag} (${count})`;
+    chip.addEventListener('click', () => {
+      state.tagFilter = tag;
+      renderTagFilterChips();
+      renderLexicon();
+    });
+    el.tagFilterChips.appendChild(chip);
+  });
+}
+
 async function refreshAll() {
   state.words = await fetchWords();
+  state.collections = await fetchCollections();
+  state.allTags = await fetchTags();
   const stats = await fetchStats();
 
   el.navCountLexicon.textContent = stats.total;
   el.navCountDue.textContent = stats.due;
   el.colophonTally.textContent = `${stats.total} entries in personal lexicon · ${stats.due} due for review · ${stats.mastered} mastered`;
 
+  populateCollectionSelects();
+  renderTagFilterChips();
   renderLexicon();
+}
+
+// ==========================================================================
+// Collections Shelf Modal Controller
+// ==========================================================================
+function openCollectionModal() {
+  if (!el.collectionModal) return;
+  el.inputCollectionName.value = '';
+  el.inputCollectionDesc.value = '';
+  el.collectionModal.classList.remove('hidden');
+  el.inputCollectionName.focus();
+}
+
+function closeCollectionModal() {
+  if (el.collectionModal) el.collectionModal.classList.add('hidden');
+}
+
+if (el.btnNewCollection) el.btnNewCollection.addEventListener('click', openCollectionModal);
+if (el.collectionModalClose) el.collectionModalClose.addEventListener('click', closeCollectionModal);
+if (el.collectionBtnCancel) el.collectionBtnCancel.addEventListener('click', closeCollectionModal);
+if (el.collectionModal) {
+  el.collectionModal.addEventListener('click', (e) => {
+    if (e.target === el.collectionModal) closeCollectionModal();
+  });
+}
+
+if (el.collectionForm) {
+  el.collectionForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = el.inputCollectionName.value.trim();
+    const description = el.inputCollectionDesc.value.trim();
+    if (!name) return;
+
+    try {
+      if (window.vocabAPI && window.vocabAPI.createCollection) {
+        const created = await window.vocabAPI.createCollection({ name, description });
+        closeCollectionModal();
+        state.collectionFilter = created.id;
+        await refreshAll();
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to create collection shelf.');
+    }
+  });
+}
+
+if (el.filterCollection) {
+  el.filterCollection.addEventListener('change', (e) => {
+    state.collectionFilter = e.target.value;
+    renderLexicon();
+  });
 }
 
 // ==========================================================================
@@ -312,7 +516,8 @@ el.entryForm.addEventListener('submit', async (e) => {
     el.inputSource.value = '';
     await refreshAll();
     showFeedback(`Recorded "${enriched.displayWord}".`);
-    openDetailModal(enriched);
+    const freshlySaved = state.words.find(w => w.word.toLowerCase() === enriched.word.toLowerCase()) || enriched;
+    openDetailModal(freshlySaved);
   } catch (err) {
     showFeedback(err.message || 'Lookup failed. Check word spelling.', true);
   } finally {
@@ -343,6 +548,8 @@ function hideFeedback() {
 function renderLexicon() {
   const query = state.searchQuery.toLowerCase().trim();
   const filter = state.statusFilter;
+  const colFilter = state.collectionFilter;
+  const tagFilter = state.tagFilter;
   const now = new Date();
 
   const filtered = state.words.filter(w => {
@@ -354,15 +561,31 @@ function renderLexicon() {
       const matchDef = (w.meanings || []).some(m =>
         (m.definitions || []).some(d => (d.definition || '').toLowerCase().includes(query))
       );
-      if (!matchWord && !matchDisplay && !matchInflected && !matchSource && !matchDef) return false;
+      const matchTags = (w.tags || []).some(t => t.toLowerCase().includes(query));
+      if (!matchWord && !matchDisplay && !matchInflected && !matchSource && !matchDef && !matchTags) return false;
     }
 
-    const box = w.review?.box || 1;
-    const isDue = w.review?.nextReviewDate ? new Date(w.review.nextReviewDate) <= now : true;
+    // Status filter
+    if (filter === 'favorites') {
+      if (!w.isFavorite) return false;
+    } else {
+      const box = w.review?.box || 1;
+      const isDue = w.review?.nextReviewDate ? new Date(w.review.nextReviewDate) <= now : true;
+      if (filter === 'due' && !isDue) return false;
+      if (filter === 'learning' && box >= 5) return false;
+      if (filter === 'mastered' && box < 5) return false;
+    }
 
-    if (filter === 'due') return isDue;
-    if (filter === 'learning') return box < 5;
-    if (filter === 'mastered') return box >= 5;
+    // Collection filter
+    if (colFilter !== 'all') {
+      if (!Array.isArray(w.collections) || !w.collections.includes(colFilter)) return false;
+    }
+
+    // Tag filter
+    if (tagFilter) {
+      if (!Array.isArray(w.tags) || !w.tags.includes(tagFilter)) return false;
+    }
+
     return true;
   });
 
@@ -390,11 +613,19 @@ function renderLexicon() {
     const isMastered = box >= 5;
     const isInflected = word.inflectedForm && word.inflectedForm.toLowerCase() !== word.word.toLowerCase();
     const hasAudio = hasAudioRecord(word);
+    const isFav = Boolean(word.isFavorite);
 
     card.innerHTML = `
       <div class="card-mast">
         <h3 class="card-title-serif">${escapeHtml(word.displayWord)}</h3>
-        <button type="button" class="box-stamp btn-stamp-trigger ${isMastered ? 'mastered' : ''}" title="View Leitner cadence guide">Box ${box} · ${escapeHtml(boxLabel)}</button>
+        <div class="card-mast-actions">
+          <button type="button" class="btn-icon-fav btn-card-fav ${isFav ? 'active' : ''}" title="${isFav ? 'Remove from favorites' : 'Mark as favorite'}" aria-label="Favorite">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </button>
+          <button type="button" class="box-stamp btn-stamp-trigger ${isMastered ? 'mastered' : ''}" title="View Leitner cadence guide">Box ${box} · ${escapeHtml(boxLabel)}</button>
+        </div>
       </div>
 
       <div class="phonetic-row">
@@ -415,11 +646,48 @@ function renderLexicon() {
 
       ${example ? `<div class="card-quote-preview">"${escapeHtml(example)}"</div>` : ''}
 
+      ${((word.collections && word.collections.length > 0) || (word.tags && word.tags.length > 0)) ? `
+        <div class="card-taxonomies">
+          ${(word.collections || []).map(cid => {
+            const col = (state.collections || []).find(c => c.id === cid);
+            return col ? `<span class="badge-collection">${escapeHtml(col.name)}</span>` : '';
+          }).join('')}
+          ${(word.tags || []).map(t => `<span class="badge-tag" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</span>`).join('')}
+        </div>
+      ` : ''}
+
       <div class="card-foot">
         <span class="card-source-cite">${word.bookSource ? `Ref: ${escapeHtml(word.bookSource)}` : ''}</span>
         <span>${formatNextReview(word.review?.nextReviewDate)}</span>
       </div>
     `;
+
+    // Favorite toggle button
+    const favBtn = card.querySelector('.btn-card-fav');
+    if (favBtn) {
+      favBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (window.vocabAPI && window.vocabAPI.toggleFavorite) {
+          try {
+            await window.vocabAPI.toggleFavorite(word.id);
+            await refreshAll();
+          } catch (err) {
+            console.error('Error toggling favorite:', err);
+          }
+        }
+      });
+    }
+
+    // Tag badge click toggles tag filter
+    card.querySelectorAll('.badge-tag').forEach(tagEl => {
+      tagEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tag = tagEl.getAttribute('data-tag');
+        state.tagFilter = state.tagFilter === tag ? null : tag;
+        renderTagFilterChips();
+        renderLexicon();
+      });
+    });
 
     // Box cadence stamp trigger
     const stampBtn = card.querySelector('.btn-stamp-trigger');
@@ -483,6 +751,15 @@ function openDetailModal(word) {
   el.modalSource.textContent = word.bookSource ? `Citation source: ${word.bookSource}` : '';
   el.modalEtymology.textContent = word.etymology || 'Etymology records not available.';
 
+  // Favorite Button
+  const isFav = Boolean(word.isFavorite);
+  if (el.modalFavBtn) {
+    el.modalFavBtn.classList.toggle('active', isFav);
+    el.modalFavBtn.title = isFav ? 'Remove from favorites' : 'Mark as favorite';
+    const svg = el.modalFavBtn.querySelector('svg');
+    if (svg) svg.setAttribute('fill', isFav ? 'currentColor' : 'none');
+  }
+
   // Meanings
   el.modalMeanings.innerHTML = '';
   if (word.meanings && word.meanings.length > 0) {
@@ -503,6 +780,12 @@ function openDetailModal(word) {
   } else {
     el.modalMeanings.innerHTML = '<p class="text-secondary">No definitions found.</p>';
   }
+
+  // Collections Section
+  renderModalCollections(word);
+
+  // Tags Section
+  renderModalTags(word);
 
   // Synonyms
   if (word.synonyms && word.synonyms.length > 0) {
@@ -537,6 +820,122 @@ function openDetailModal(word) {
   el.modalScheduleStamp.textContent = formatNextReview(word.review?.nextReviewDate);
 
   el.detailModal.classList.remove('hidden');
+}
+
+function renderModalCollections(word) {
+  if (!el.modalCollectionsList || !el.modalAddCollectionSelect) return;
+  el.modalCollectionsList.innerHTML = '';
+  const wordColIds = word.collections || [];
+
+  if (wordColIds.length === 0) {
+    el.modalCollectionsList.innerHTML = '<span class="text-secondary" style="font-size: 0.8rem;">Not assigned to any shelves.</span>';
+  } else {
+    wordColIds.forEach(cid => {
+      const col = (state.collections || []).find(c => c.id === cid);
+      if (!col) return;
+      const chip = document.createElement('span');
+      chip.className = 'badge-collection';
+      chip.innerHTML = `${escapeHtml(col.name)} <button type="button" class="chip-remove-btn" data-col="${col.id}" title="Remove from shelf">&times;</button>`;
+      chip.querySelector('.chip-remove-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (window.vocabAPI && window.vocabAPI.removeWordFromCollection) {
+          await window.vocabAPI.removeWordFromCollection(word.id, col.id);
+          word.collections = (word.collections || []).filter(id => id !== col.id);
+          await refreshAll();
+          renderModalCollections(word);
+        }
+      });
+      el.modalCollectionsList.appendChild(chip);
+    });
+  }
+
+  // Populate Add Dropdown
+  el.modalAddCollectionSelect.innerHTML = '<option value="">+ Assign to Shelf...</option>';
+  (state.collections || []).forEach(col => {
+    if (!wordColIds.includes(col.id)) {
+      const opt = document.createElement('option');
+      opt.value = col.id;
+      opt.textContent = col.name;
+      el.modalAddCollectionSelect.appendChild(opt);
+    }
+  });
+}
+
+if (el.modalAddCollectionSelect) {
+  el.modalAddCollectionSelect.addEventListener('change', async (e) => {
+    const colId = e.target.value;
+    if (!colId || !state.selectedWord) return;
+    if (window.vocabAPI && window.vocabAPI.assignWordToCollection) {
+      await window.vocabAPI.assignWordToCollection(state.selectedWord.id, colId);
+      if (!state.selectedWord.collections) state.selectedWord.collections = [];
+      state.selectedWord.collections.push(colId);
+      await refreshAll();
+      renderModalCollections(state.selectedWord);
+    }
+  });
+}
+
+function renderModalTags(word) {
+  if (!el.modalTagsList) return;
+  el.modalTagsList.innerHTML = '';
+  const tags = word.tags || [];
+
+  if (tags.length === 0) {
+    el.modalTagsList.innerHTML = '<span class="text-secondary" style="font-size: 0.8rem;">No tags assigned yet.</span>';
+  } else {
+    tags.forEach(tag => {
+      const chip = document.createElement('span');
+      chip.className = 'text-chip';
+      chip.innerHTML = `#${escapeHtml(tag)} <button type="button" class="chip-remove-btn" data-tag="${escapeHtml(tag)}" title="Remove tag">&times;</button>`;
+      chip.querySelector('.chip-remove-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const updated = tags.filter(t => t !== tag);
+        if (window.vocabAPI && window.vocabAPI.setWordTags) {
+          await window.vocabAPI.setWordTags(word.id, updated);
+          word.tags = updated;
+          await refreshAll();
+          renderModalTags(word);
+        }
+      });
+      el.modalTagsList.appendChild(chip);
+    });
+  }
+}
+
+if (el.modalTagForm) {
+  el.modalTagForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const newTag = el.modalTagInput.value.trim().replace(/^#+/, '').toLowerCase();
+    if (!newTag || !state.selectedWord) return;
+
+    const currentTags = state.selectedWord.tags || [];
+    if (!currentTags.includes(newTag)) {
+      const updated = [...currentTags, newTag];
+      if (window.vocabAPI && window.vocabAPI.setWordTags) {
+        await window.vocabAPI.setWordTags(state.selectedWord.id, updated);
+        state.selectedWord.tags = updated;
+        el.modalTagInput.value = '';
+        await refreshAll();
+        renderModalTags(state.selectedWord);
+      }
+    } else {
+      el.modalTagInput.value = '';
+    }
+  });
+}
+
+if (el.modalFavBtn) {
+  el.modalFavBtn.addEventListener('click', async () => {
+    if (!state.selectedWord) return;
+    if (window.vocabAPI && window.vocabAPI.toggleFavorite) {
+      const newState = await window.vocabAPI.toggleFavorite(state.selectedWord.id);
+      state.selectedWord.isFavorite = newState;
+      el.modalFavBtn.classList.toggle('active', Boolean(newState));
+      const svg = el.modalFavBtn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', newState ? 'currentColor' : 'none');
+      await refreshAll();
+    }
+  });
 }
 
 el.modalBoxStamp.addEventListener('click', () => {
@@ -725,11 +1124,359 @@ async function submitRating(rating) {
 }
 
 // ==========================================================================
+// Active Retention Quiz Controller
+// ==========================================================================
+function initQuizView() {
+  if (el.quizArena) el.quizArena.classList.add('hidden');
+  if (el.quizComplete) el.quizComplete.classList.add('hidden');
+  if (el.quizEmptyNotice) el.quizEmptyNotice.classList.add('hidden');
+}
+
+if (el.btnStartQuiz) el.btnStartQuiz.addEventListener('click', () => startQuizSession());
+if (el.btnQuizRestart) el.btnQuizRestart.addEventListener('click', () => startQuizSession());
+if (el.btnQuizToLexicon) el.btnQuizToLexicon.addEventListener('click', () => switchView('lexicon'));
+
+async function startQuizSession() {
+  const mode = el.quizModeSelect.value;
+  const scopeVal = el.quizScopeSelect.value;
+  const limit = parseInt(el.quizLimitSelect.value, 10) || 5;
+  const linkToSrs = el.quizLinkSrs.checked;
+
+  const filter = { limit };
+  if (scopeVal.startsWith('col:')) {
+    filter.collectionId = scopeVal.slice(4);
+  }
+
+  let questions = [];
+  try {
+    if (window.vocabAPI && window.vocabAPI.generateQuiz) {
+      questions = await window.vocabAPI.generateQuiz(mode, filter);
+    }
+  } catch (err) {
+    console.error('Quiz generation error:', err);
+  }
+
+  if (scopeVal === 'favorites') {
+    questions = (questions || []).filter(q => {
+      const w = state.words.find(word => word.id === q.wordId);
+      return w && (w.isFavorite === 1 || w.isFavorite === true);
+    });
+  }
+
+  if (!questions || questions.length === 0) {
+    el.quizArena.classList.add('hidden');
+    el.quizComplete.classList.add('hidden');
+    el.quizEmptyNotice.classList.remove('hidden');
+    if (scopeVal === 'favorites') {
+      el.quizEmptySub.textContent = 'You have not favorited enough words (with definitions or examples) to generate this quiz.';
+    } else if (scopeVal.startsWith('col:')) {
+      el.quizEmptySub.textContent = 'This collection does not have enough distinct words to generate 4-option quiz questions.';
+    } else {
+      el.quizEmptySub.textContent = 'You need at least 4 words recorded in your lexicon (with definitions and examples) to generate this quiz.';
+    }
+    return;
+  }
+
+  state.quiz = {
+    deck: questions,
+    index: 0,
+    score: 0,
+    mode,
+    isAnswered: false,
+    linkToSrs
+  };
+
+  el.quizEmptyNotice.classList.add('hidden');
+  el.quizComplete.classList.add('hidden');
+  el.quizArena.classList.remove('hidden');
+
+  renderCurrentQuizQuestion();
+}
+
+function renderCurrentQuizQuestion() {
+  const q = state.quiz.deck[state.quiz.index];
+  if (!q) {
+    showQuizComplete();
+    return;
+  }
+
+  state.quiz.isAnswered = false;
+  el.quizActions.classList.add('hidden');
+
+  const total = state.quiz.deck.length;
+  const step = state.quiz.index + 1;
+  el.quizProgressText.textContent = `Question ${step} of ${total}`;
+  el.quizProgressBar.style.width = `${Math.round((step / total) * 100)}%`;
+  el.quizScoreText.textContent = `${state.quiz.score} / ${state.quiz.index}`;
+
+  const modeLabels = {
+    definition: 'Definition Match',
+    cloze: 'Sentence Completion',
+    missing_letters: 'Missing Letters'
+  };
+  el.quizBadgeMode.textContent = modeLabels[q.mode] || 'Quiz';
+
+  el.quizCardContent.innerHTML = '';
+
+  if (q.mode === 'definition') {
+    renderDefinitionQuestion(q);
+  } else if (q.mode === 'cloze') {
+    renderClozeQuestion(q);
+  } else if (q.mode === 'missing_letters') {
+    renderMissingLettersQuestion(q);
+  }
+}
+
+function renderDefinitionQuestion(q) {
+  const targetWord = state.words.find(w => w.id === q.wordId);
+  const hasAudio = hasAudioRecord(targetWord);
+
+  const container = document.createElement('div');
+  container.className = 'quiz-card-body';
+
+  container.innerHTML = `
+    <div class="quiz-prompt-header">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+        <h2 class="quiz-target-word">${escapeHtml(q.prompt)}</h2>
+        <button type="button" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        </button>
+      </div>
+      <div class="phonetic-row">
+        ${q.partOfSpeech ? `<span class="pos-stamp">${escapeHtml(q.partOfSpeech)}</span>` : ''}
+        ${q.phonetic ? `<span class="pos-divider" aria-hidden="true">·</span><span class="phonetic-mono">${escapeHtml(q.phonetic)}</span>` : ''}
+      </div>
+      <p class="quiz-question-sub">Select the definition that correctly matches this word:</p>
+    </div>
+
+    <div class="quiz-options-list">
+      ${q.options.map((opt, idx) => `
+        <button type="button" class="quiz-option-btn" data-index="${idx}">
+          <span class="quiz-option-key">${idx + 1}</span>
+          <span class="quiz-option-text">${escapeHtml(opt)}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+
+  const audioBtn = container.querySelector('.btn-quiz-audio');
+  if (audioBtn && targetWord) {
+    audioBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playAudio(targetWord.audioUrl, targetWord.word, audioBtn);
+    });
+  }
+
+  container.querySelectorAll('.quiz-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selectedIndex = parseInt(btn.getAttribute('data-index'), 10);
+      handleOptionSelected(q, selectedIndex);
+    });
+  });
+
+  el.quizCardContent.appendChild(container);
+}
+
+function renderClozeQuestion(q) {
+  const container = document.createElement('div');
+  container.className = 'quiz-card-body';
+
+  const formattedSentence = escapeHtml(q.promptSentence).replace(/_______/g, '<mark>_______</mark>');
+
+  container.innerHTML = `
+    <div class="quiz-prompt-header">
+      <div class="quiz-sentence-prompt">"${formattedSentence}"</div>
+      <p class="quiz-question-sub">Select the vocabulary slip that completes this reading excerpt:</p>
+    </div>
+
+    <div class="quiz-options-list">
+      ${q.options.map((opt, idx) => `
+        <button type="button" class="quiz-option-btn" data-index="${idx}">
+          <span class="quiz-option-key">${idx + 1}</span>
+          <span class="quiz-option-text" style="font-family: var(--font-serif); font-size: 1.15rem; font-weight: 500;">${escapeHtml(opt)}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+
+  container.querySelectorAll('.quiz-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selectedIndex = parseInt(btn.getAttribute('data-index'), 10);
+      handleOptionSelected(q, selectedIndex);
+    });
+  });
+
+  el.quizCardContent.appendChild(container);
+}
+
+function renderMissingLettersQuestion(q) {
+  const targetWord = state.words.find(w => w.id === q.wordId);
+  const hasAudio = hasAudioRecord(targetWord);
+
+  const container = document.createElement('div');
+  container.className = 'missing-letters-area';
+
+  container.innerHTML = `
+    <div class="missing-letters-masked">${escapeHtml(q.maskedWord)}</div>
+    <div class="phonetic-row" style="justify-content: center; margin-bottom: 0.5rem;">
+      <span class="phonetic-mono">${escapeHtml(q.phonetic || '')}</span>
+      <button type="button" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+      </button>
+    </div>
+    <p class="missing-letters-definition">"${escapeHtml(q.definition)}"</p>
+
+    <form class="missing-letters-form" id="missing-letters-form">
+      <input type="text" class="entry-input missing-letters-input" id="input-missing-letters" placeholder="Type full word..." autocomplete="off">
+      <button type="submit" class="btn-record">Verify</button>
+    </form>
+  `;
+
+  const audioBtn = container.querySelector('.btn-quiz-audio');
+  if (audioBtn && targetWord) {
+    audioBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      playAudio(targetWord.audioUrl, targetWord.word, audioBtn);
+    });
+  }
+
+  const form = container.querySelector('#missing-letters-form');
+  const input = container.querySelector('#input-missing-letters');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (state.quiz.isAnswered) return;
+    const typed = input.value.trim().toLowerCase();
+    const isCorrect = typed === q.solution.toLowerCase();
+    handleMissingLettersResult(q, isCorrect, input);
+  });
+
+  el.quizCardContent.appendChild(container);
+  input.focus();
+}
+
+async function handleOptionSelected(q, selectedIndex) {
+  if (state.quiz.isAnswered) return;
+  state.quiz.isAnswered = true;
+
+  const isCorrect = selectedIndex === q.correctAnswerIndex;
+  const buttons = el.quizCardContent.querySelectorAll('.quiz-option-btn');
+
+  buttons.forEach((btn, idx) => {
+    btn.disabled = true;
+    if (idx === q.correctAnswerIndex) {
+      btn.classList.add('correct');
+    } else if (idx === selectedIndex) {
+      btn.classList.add('wrong');
+    }
+  });
+
+  if (isCorrect) {
+    state.quiz.score++;
+    showQuizFeedback(true, '✓ Correct recall.');
+    const targetWord = state.words.find(w => w.id === q.wordId);
+    if (targetWord && hasAudioRecord(targetWord)) {
+      playAudio(targetWord.audioUrl, targetWord.word, null);
+    }
+  } else {
+    showQuizFeedback(false, `✗ Incorrect. Correct: "${escapeHtml(q.options[q.correctAnswerIndex])}"`);
+  }
+
+  // Update SRS cadence if enabled
+  if (window.vocabAPI && window.vocabAPI.submitQuiz) {
+    try {
+      await window.vocabAPI.submitQuiz(q.wordId, isCorrect, state.quiz.linkToSrs);
+    } catch (err) {
+      console.error('Error submitting quiz result:', err);
+    }
+  }
+
+  el.quizActions.classList.remove('hidden');
+  el.btnQuizNext.focus();
+}
+
+async function handleMissingLettersResult(q, isCorrect, inputEl) {
+  state.quiz.isAnswered = true;
+  inputEl.disabled = true;
+
+  if (isCorrect) {
+    state.quiz.score++;
+    showQuizFeedback(true, `✓ Exact match: "${escapeHtml(q.solution)}"`);
+    const targetWord = state.words.find(w => w.id === q.wordId);
+    if (targetWord && hasAudioRecord(targetWord)) {
+      playAudio(targetWord.audioUrl, targetWord.word, null);
+    }
+  } else {
+    showQuizFeedback(false, `✗ Word was: "${escapeHtml(q.solution)}"`);
+  }
+
+  if (window.vocabAPI && window.vocabAPI.submitQuiz) {
+    try {
+      await window.vocabAPI.submitQuiz(q.wordId, isCorrect, state.quiz.linkToSrs);
+    } catch (err) {
+      console.error('Error submitting quiz result:', err);
+    }
+  }
+
+  el.quizActions.classList.remove('hidden');
+  el.btnQuizNext.focus();
+}
+
+function showQuizFeedback(isCorrect, message) {
+  el.quizFeedbackBanner.textContent = message;
+  el.quizFeedbackBanner.className = `quiz-feedback-banner ${isCorrect ? 'correct' : 'wrong'}`;
+}
+
+el.btnQuizNext.addEventListener('click', () => {
+  state.quiz.index++;
+  if (state.quiz.index < state.quiz.deck.length) {
+    renderCurrentQuizQuestion();
+  } else {
+    showQuizComplete();
+  }
+});
+
+async function showQuizComplete() {
+  el.quizArena.classList.add('hidden');
+  el.quizComplete.classList.remove('hidden');
+
+  const total = state.quiz.deck.length;
+  const score = state.quiz.score;
+  const pct = Math.round((score / total) * 100);
+
+  el.quizCompleteScore.textContent = `Score: ${score} / ${total} (${pct}%)`;
+
+  let summary = '';
+  if (pct === 100) {
+    summary = 'Flawless recall. All tested vocabulary slips consolidated in memory.';
+  } else if (pct >= 70) {
+    summary = 'Strong retention across tested entries. Scheduled cadences adjusted.';
+  } else {
+    summary = 'Several words need reinforcement. They have been scheduled for review in your Review Deck.';
+  }
+  el.quizCompleteSummary.textContent = summary;
+
+  // Refresh stats in background
+  await refreshAll();
+}
+
+// ==========================================================================
 // Keyboard Navigation
 // ==========================================================================
 window.addEventListener('keydown', (e) => {
   // Always handle Escape for open dialogs regardless of focused field
   if (e.key === 'Escape') {
+    if (el.collectionModal && !el.collectionModal.classList.contains('hidden')) {
+      e.preventDefault();
+      closeCollectionModal();
+      return;
+    }
+
     if (el.cadenceModal && !el.cadenceModal.classList.contains('hidden')) {
       e.preventDefault();
       closeCadenceModal();
@@ -749,6 +1496,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Review Deck keyboard handling
   if (state.activeView === 'review' && !el.indexCard.parentElement.classList.contains('hidden')) {
     if (e.code === 'Space') {
       e.preventDefault();
@@ -758,6 +1506,25 @@ window.addEventListener('keydown', (e) => {
       if (e.key === '2') submitRating('hard');
       if (e.key === '3') submitRating('good');
       if (e.key === '4') submitRating('easy');
+    }
+  }
+
+  // Active Quiz keyboard handling
+  if (state.activeView === 'quiz' && !el.quizArena.classList.contains('hidden')) {
+    if (!state.quiz.isAnswered && (state.quiz.mode === 'definition' || state.quiz.mode === 'cloze')) {
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        const index = parseInt(e.key, 10) - 1;
+        const currentQ = state.quiz.deck[state.quiz.index];
+        if (currentQ && currentQ.options && currentQ.options[index] !== undefined) {
+          handleOptionSelected(currentQ, index);
+        }
+      }
+    } else if (state.quiz.isAnswered) {
+      if (e.code === 'Space' || e.key === 'Enter') {
+        e.preventDefault();
+        el.btnQuizNext.click();
+      }
     }
   }
 });
@@ -831,26 +1598,33 @@ if (el.cadenceBtnDismiss) el.cadenceBtnDismiss.addEventListener('click', closeCa
 // ==========================================================================
 el.navLexiconBtn.addEventListener('click', () => switchView('lexicon'));
 el.navReviewBtn.addEventListener('click', () => switchView('review'));
+if (el.navQuizBtn) el.navQuizBtn.addEventListener('click', () => switchView('quiz'));
 el.btnReturnLexicon.addEventListener('click', () => switchView('lexicon'));
 
 function switchView(viewName) {
   state.activeView = viewName;
+
+  el.navLexiconBtn.classList.toggle('active', viewName === 'lexicon');
+  el.navReviewBtn.classList.toggle('active', viewName === 'review');
+  if (el.navQuizBtn) el.navQuizBtn.classList.toggle('active', viewName === 'quiz');
+
+  el.viewLexicon.classList.toggle('active', viewName === 'lexicon');
+  el.viewLexicon.classList.toggle('hidden', viewName !== 'lexicon');
+
+  el.viewReview.classList.toggle('active', viewName === 'review');
+  el.viewReview.classList.toggle('hidden', viewName !== 'review');
+
+  if (el.viewQuiz) {
+    el.viewQuiz.classList.toggle('active', viewName === 'quiz');
+    el.viewQuiz.classList.toggle('hidden', viewName !== 'quiz');
+  }
+
   if (viewName === 'lexicon') {
-    el.navLexiconBtn.classList.add('active');
-    el.navReviewBtn.classList.remove('active');
-    el.viewLexicon.classList.add('active');
-    el.viewLexicon.classList.remove('hidden');
-    el.viewReview.classList.remove('active');
-    el.viewReview.classList.add('hidden');
     renderLexicon();
   } else if (viewName === 'review') {
-    el.navReviewBtn.classList.add('active');
-    el.navLexiconBtn.classList.remove('active');
-    el.viewReview.classList.add('active');
-    el.viewReview.classList.remove('hidden');
-    el.viewLexicon.classList.remove('active');
-    el.viewLexicon.classList.add('hidden');
     startReviewSession();
+  } else if (viewName === 'quiz') {
+    initQuizView();
   }
 }
 
