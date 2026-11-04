@@ -1,4 +1,5 @@
 'use strict';
+const { randomUUID } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { validateWords } = require('../db/wordSchema');
@@ -12,13 +13,13 @@ const FIELDS = {
 };
 const REVIEW_FIELDS = { box: 'box', boxLabel: 'box_label', nextReviewDate: 'next_review_date', reviewCount: 'review_count', streak: 'streak', lastRating: 'last_rating', lastReviewedAt: 'last_reviewed_at', intervalDays: 'interval_days' };
 const JSON_FIELDS = ['meanings', 'synonyms', 'antonyms'];
-const columns = [...Object.values(FIELDS), ...Object.values(REVIEW_FIELDS), ...JSON_FIELDS.map(key => `${key}_json`), 'next_review_at'];
+const columns = [...Object.values(FIELDS), ...Object.values(REVIEW_FIELDS), ...JSON_FIELDS.map(key => `${key}_json`), 'next_review_at', 'is_favorite'];
 function normalized(word) {
   return { ...word, review: { ...word.review, boxLabel: word.review.boxLabel ?? BOX_METRICS[word.review.box].label, intervalDays: word.review.intervalDays ?? 1 } };
 }
 function values(model) {
   const word = normalized(model);
-  return [...Object.keys(FIELDS).map(key => word[key] ?? null), ...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), ...JSON_FIELDS.map(key => JSON.stringify(word[key])), Date.parse(word.review.nextReviewDate)];
+  return [...Object.keys(FIELDS).map(key => word[key] ?? null), ...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), ...JSON_FIELDS.map(key => JSON.stringify(word[key])), Date.parse(word.review.nextReviewDate), word.isFavorite ? 1 : 0];
 }
 function model(row) {
   const word = {};
@@ -59,7 +60,7 @@ class StorageService {
       this.selectAll = this.db.prepare('SELECT * FROM words ORDER BY rowid');
       this.selectDue = this.db.prepare('SELECT * FROM words WHERE next_review_at <= ? ORDER BY next_review_at, rowid');
       this.selectStats = this.db.prepare('SELECT COUNT(*) AS total, COALESCE(SUM(next_review_at <= ?), 0) AS due, COALESCE(SUM(box = 5), 0) AS mastered FROM words');
-      this.selectOne = this.db.prepare('SELECT * FROM words WHERE id = ?');
+      this.selectRow = this.db.prepare('SELECT * FROM words WHERE id = ?');
       this.deleteOne = this.db.prepare('DELETE FROM words WHERE id = ?');
       this.updateReview = this.db.prepare(`UPDATE words SET ${Object.values(REVIEW_FIELDS).map(column => `${column} = ?`).join(', ')}, next_review_at = ? WHERE id = ?`);
     } catch (error) { this.db.close(); throw error; }
@@ -78,12 +79,74 @@ class StorageService {
     } else if (!fs.existsSync(backup)) throw new Error('Legacy migration source and backup are missing');
     this.db.prepare("DELETE FROM schema_meta WHERE key = 'legacy_rename_pending'").run();
   }
-  loadWords() { return this.selectAll.all().map(model); }
+  hydrate(row) {
+    return { ...model(row), isFavorite: Boolean(row.is_favorite),
+      collections: this.db.prepare('SELECT collection_id FROM word_collections WHERE word_id = ? ORDER BY rowid').all(row.id).map(item => item.collection_id),
+      tags: this.getWordTags(row.id) };
+  }
+  selectOne(id) { const row = this.selectRow.get(id); return row ? this.hydrate(row) : undefined; }
+  getWords() { return this.loadWords(); }
+  loadWords() { return this.selectAll.all().map(row => this.hydrate(row)); }
+  requireWord(id) { if (!this.selectRow.get(id)) throw new Error('Word not found'); }
+  toggleFavorite(id) {
+    const row = this.db.prepare('UPDATE words SET is_favorite = 1 - is_favorite WHERE id = ? RETURNING is_favorite').get(id);
+    if (!row) throw new Error('Word not found');
+    return Boolean(row.is_favorite);
+  }
+  getFavorites() { return this.db.prepare('SELECT * FROM words WHERE is_favorite = 1 ORDER BY rowid').all().map(row => this.hydrate(row)); }
+  createCollection(name, description = '', colorAccent = '') {
+    if (typeof name !== 'string' || !name.trim() || typeof description !== 'string' || typeof colorAccent !== 'string') throw new TypeError('Invalid collection');
+    const collection = { id: `col_${Date.now()}_${randomUUID()}`, name: name.trim(), description, colorAccent, createdAt: new Date().toISOString() };
+    this.db.prepare('INSERT INTO collections VALUES (?, ?, ?, ?, ?)').run(collection.id, collection.name, description, colorAccent, collection.createdAt);
+    return collection;
+  }
+  getCollections() {
+    return this.db.prepare(`SELECT c.id, c.name, c.description, c.color_accent AS colorAccent,
+      c.created_at AS createdAt, COUNT(w.word_id) AS wordCount FROM collections c
+      LEFT JOIN word_collections w ON w.collection_id = c.id GROUP BY c.id ORDER BY c.rowid`).all().map(row => ({ ...row }));
+  }
+  deleteCollection(id) { return this.db.prepare('DELETE FROM collections WHERE id = ?').run(id).changes > 0; }
+  assignWordToCollection(wordId, collectionId) { return this.db.prepare('INSERT OR IGNORE INTO word_collections VALUES (?, ?)').run(wordId, collectionId).changes > 0; }
+  removeWordFromCollection(wordId, collectionId) { return this.db.prepare('DELETE FROM word_collections WHERE word_id = ? AND collection_id = ?').run(wordId, collectionId).changes > 0; }
+  getWordsInCollection(id) { return this.db.prepare('SELECT w.* FROM words w JOIN word_collections c ON c.word_id = w.id WHERE c.collection_id = ? ORDER BY w.rowid').all(id).map(row => this.hydrate(row)); }
+  setWordTags(wordId, tags) {
+    if (!Array.isArray(tags) || tags.some(tag => typeof tag !== 'string')) throw new TypeError('Invalid tags');
+    const normalized = [...new Set(tags.map(normalizeTag).filter(Boolean))];
+    return this.transaction(() => {
+      this.requireWord(wordId);
+      this.db.prepare('DELETE FROM word_tags WHERE word_id = ?').run(wordId);
+      const insert = this.db.prepare('INSERT INTO word_tags VALUES (?, ?)');
+      for (const tag of normalized) insert.run(wordId, tag);
+      return true;
+    });
+  }
+  getWordTags(id) { return this.db.prepare('SELECT tag FROM word_tags WHERE word_id = ? ORDER BY rowid').all(id).map(row => row.tag); }
+  getAllTags() { return this.db.prepare('SELECT tag, COUNT(*) AS count FROM word_tags GROUP BY tag ORDER BY tag').all().map(row => ({ ...row })); }
+  getWordsByTag(tag) { return this.db.prepare('SELECT w.* FROM words w JOIN word_tags t ON t.word_id = w.id WHERE t.tag = ? ORDER BY w.rowid').all(normalizeTag(tag)).map(row => this.hydrate(row)); }
+  submitQuiz(wordId, success, linkToSrs) {
+    if (typeof success !== 'boolean' || typeof linkToSrs !== 'boolean') throw new TypeError('Invalid quiz result');
+    return this.transaction(() => {
+      this.requireWord(wordId);
+      if (linkToSrs) {
+        const now = new Date();
+        const word = model(this.selectRow.get(wordId));
+        word.review = calculateNextReview(word.review, success ? 'good' : 'again', now);
+        if (!success) word.review.nextReviewDate = now.toISOString();
+        this.updateReview.run(...Object.keys(REVIEW_FIELDS).map(key => word.review[key]), Date.parse(word.review.nextReviewDate), wordId);
+      }
+      return true;
+    });
+  }
   saveWords(words) {
     validateWords(words);
     this.transaction(() => {
       this.db.exec('DELETE FROM words');
-      for (const word of words) this.insert.run(...values(word));
+      for (const word of words) {
+        this.insert.run(...values(word));
+        for (const id of word.collections ?? []) this.assignWordToCollection(word.id, id);
+        const insertTag = this.db.prepare('INSERT OR IGNORE INTO word_tags VALUES (?, ?)');
+        for (const tag of word.tags ?? []) if (normalizeTag(tag)) insertTag.run(word.id, normalizeTag(tag));
+      }
     });
     return true;
   }
@@ -93,6 +156,9 @@ class StorageService {
       if (this.db.prepare('SELECT 1 FROM words WHERE word = ?').get(word.word)) throw new Error('Word already saved');
       if (this.db.prepare('SELECT COUNT(*) AS total FROM words').get().total >= 100000) throw new TypeError('Maximum 100000 entries');
       this.insert.run(...values(word));
+      for (const id of word.collections ?? []) this.assignWordToCollection(word.id, id);
+      const insertTag = this.db.prepare('INSERT OR IGNORE INTO word_tags VALUES (?, ?)');
+      for (const tag of word.tags ?? []) if (normalizeTag(tag)) insertTag.run(word.id, normalizeTag(tag));
       return true;
     });
   }
@@ -100,7 +166,7 @@ class StorageService {
   removeWord(id) { this.deleteOne.run(id); return true; }
   reviewWord(id, rating, now = new Date()) {
     return this.transaction(() => {
-      const row = this.selectOne.get(id);
+      const row = this.selectRow.get(id);
       if (!row) throw new Error('Word not found');
       const word = model(row);
       word.review = calculateNextReview(word.review, rating, now);
@@ -111,7 +177,7 @@ class StorageService {
   }
   getDueWordsQueue(now = new Date()) {
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError('Invalid review date');
-    return this.selectDue.all(now.getTime()).map(model);
+    return this.selectDue.all(now.getTime()).map(row => this.hydrate(row));
   }
   getReviewStats(now = new Date()) {
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError('Invalid review date');
@@ -122,4 +188,8 @@ class StorageService {
   importData(words) { return this.saveWords(words); }
   close() { if (!this.closed) { this.db.close(); this.closed = true; } }
 }
-module.exports = { StorageService };
+function normalizeTag(tag) {
+  if (typeof tag !== 'string') throw new TypeError('Invalid tag');
+  return tag.trim().replace(/^#+/, '').trim().toLowerCase();
+}
+module.exports = { StorageService, normalizeTag };

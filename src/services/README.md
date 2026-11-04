@@ -24,7 +24,7 @@ Render external definitions and etymology as text, rather than HTML.
 Storage uses Electron's `userData/vocab_buddy.db` through native `node:sqlite`
 DatabaseSync, with WAL, synchronous NORMAL, a five-second busy timeout, prepared
 statements and explicit transactions. New database files are created with mode
-0600. `src/db/sqliteSchema.js` owns connection setup, schema version two, the words
+0600. `src/db/sqliteSchema.js` owns connection setup, schema version three, the words
 and schema_meta tables, and the requested indexes. Version-one databases are
 upgraded transactionally, retaining their pending migration markers.
 
@@ -79,3 +79,38 @@ Node built-in runner. Network requests are injected fixtures; tests do not
 verify availability of live providers or playback of remote audio. Electron
 lifecycle and bridge behavior are tested with module doubles; desktop visual
 and browser interaction checks belong to the later integration stages.
+
+
+## FEAT-004 integration
+
+Schema v3 upgrades v2 transactionally, enables foreign keys on every connection,
+and adds indexed favorites, collections, collection memberships, and normalized
+tags. Word reads include `isFavorite`, collection IDs in `collections`, and `tags`.
+`StorageService.selectOne(id)` returns a hydrated word or undefined.
+
+The bridge adds `toggleFavorite(id)`, `getCollections()`,
+`createCollection({ name, description, colorAccent })`, `deleteCollection(id)`,
+`assignWordToCollection(wordId, colId)`, `removeWordFromCollection(wordId, colId)`,
+`getAllTags()`, `setWordTags(wordId, tags)`, `generateQuiz(mode, filter)`, and
+`submitQuiz(wordId, success, linkToSrs)`. Organization mutations return booleans
+or the created collection; reload words after mutations to refresh UI state.
+Deleting a collection preserves its words. Deleting a word cascades its tags
+and memberships. Duplicate assignments return false. Empty tags are omitted.
+
+Quiz modes are `definition`, `cloze`, and `missing_letters`. Filters support
+`collectionId`, `tag`, and an integer `limit` from 5 through 10 (default 5).
+Collection and tag filters intersect for targets; distractors come from the
+whole local library using one random SQL query per question. Eligible targets
+are streamed from SQLite. Questions never repeat a target within a deck.
+Decks can be shorter than the requested limit or empty when there are too few
+eligible words, matching examples, or distinct distractors. Cloze replacement
+is case insensitive and respects word boundaries; missing letters masks at
+least one letter. Treat stored quiz text as plain text in the renderer.
+
+Quiz submission validates the word even when SRS linking is disabled, and
+otherwise leaves it unchanged. Linked success advances one box; linked failure
+resets to box one and is due immediately, per FEAT-004. This is atomic and does
+not alter the existing flashcard review scheduling contract. There is no quiz
+history table in the specified schema. Word-array export/import retains tags,
+favorites, and membership IDs; referenced collections must already exist in the
+destination database, or the import rolls back without replacing the library.

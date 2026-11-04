@@ -1,6 +1,16 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vocabAPI', {
+  toggleFavorite: id => ipcRenderer.invoke('vocab:favorite:toggle', id),
+  getCollections: () => ipcRenderer.invoke('vocab:collections:list'),
+  createCollection: collection => ipcRenderer.invoke('vocab:collections:create', collection),
+  deleteCollection: id => ipcRenderer.invoke('vocab:collections:delete', id),
+  assignWordToCollection: (wordId, colId) => ipcRenderer.invoke('vocab:collections:assign', wordId, colId),
+  removeWordFromCollection: (wordId, colId) => ipcRenderer.invoke('vocab:collections:unassign', wordId, colId),
+  getAllTags: () => ipcRenderer.invoke('vocab:tags:list'),
+  setWordTags: (id, tags) => ipcRenderer.invoke('vocab:tags:set', id, tags),
+  generateQuiz: (mode, filter) => ipcRenderer.invoke('vocab:quiz:generate', mode, filter),
+  submitQuiz: (id, success, linkToSrs) => ipcRenderer.invoke('vocab:quiz:submit', id, success, linkToSrs),
   getAudioDataUrl: word => ipcRenderer.invoke('vocab:audio', word),
   loadWords: () => ipcRenderer.invoke('vocab:load'),
   saveWords: words => ipcRenderer.invoke('vocab:save', words),

@@ -8,7 +8,8 @@ const { DatabaseSync } = require('node:sqlite');
 const { StorageService } = require('../services/storage');
 const { SCHEMA_VERSION } = require('../db/sqliteSchema');
 const { LibraryStore } = require('../store/libraryStore');
-const { starterWords } = require('../db/seed');
+const { starterWords: seedWords } = require('../db/seed');
+const starterWords = (...args) => seedWords(...args).map(word => ({ ...word, isFavorite: false, collections: [], tags: [] }));
 function directory(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vocab-sqlite-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true })); return dir;

@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const { DatabaseSync } = require('node:sqlite');
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS words (
   id TEXT PRIMARY KEY NOT NULL,
@@ -39,7 +39,7 @@ function openDatabase(filePath) {
   catch (error) { if (error.code !== 'EEXIST') throw error; }
   const db = new DatabaseSync(filePath);
   try {
-    db.exec('PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
+    db.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
     return db;
   } catch (error) { db.close(); throw error; }
 }
@@ -61,6 +61,30 @@ function initializeSchema(db) {
     }
   }
   db.exec('CREATE INDEX IF NOT EXISTS idx_words_due_timestamp ON words(next_review_at)');
+  if (!db.prepare('PRAGMA table_info(words)').all().some(column => column.name === 'is_favorite')) {
+    db.exec('ALTER TABLE words ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1))');
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(is_favorite);
+    CREATE TABLE IF NOT EXISTS collections (
+      id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL UNIQUE, description TEXT,
+      color_accent TEXT, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_collections_name ON collections(name);
+    CREATE TABLE IF NOT EXISTS word_collections (
+      word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+      collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+      PRIMARY KEY (word_id, collection_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_wc_collection ON word_collections(collection_id);
+    CREATE INDEX IF NOT EXISTS idx_wc_word ON word_collections(word_id);
+    CREATE TABLE IF NOT EXISTS word_tags (
+      word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+      tag TEXT NOT NULL, PRIMARY KEY (word_id, tag)
+    );
+    CREATE INDEX IF NOT EXISTS idx_word_tags_tag ON word_tags(tag);
+    CREATE INDEX IF NOT EXISTS idx_word_tags_word ON word_tags(word_id);
+  `);
   return version;
 }
 module.exports = { SCHEMA_VERSION, SCHEMA_SQL, openDatabase, initializeSchema };

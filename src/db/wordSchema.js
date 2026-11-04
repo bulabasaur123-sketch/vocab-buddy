@@ -20,6 +20,8 @@ function validateWords(words) {
     if (word.inflectedForm !== undefined && (typeof word.inflectedForm !== 'string' || !word.inflectedForm.trim() || word.inflectedForm.length > 100)) throw new TypeError('Invalid inflected form');
     if (word.audioLocalPath !== undefined && word.audioLocalPath !== `${word.word}.mp3`) throw new TypeError('Invalid local audio path');
     if (word.audioSizeBytes !== undefined && (!Number.isSafeInteger(word.audioSizeBytes) || word.audioSizeBytes <= 0 || word.audioSizeBytes > 102400)) throw new TypeError('Invalid audio size');
+    if (word.isFavorite !== undefined && typeof word.isFavorite !== 'boolean') throw new TypeError('Invalid favorite');
+    for (const key of ['collections', 'tags']) if (word[key] !== undefined && (!Array.isArray(word[key]) || word[key].some(value => typeof value !== 'string'))) throw new TypeError(`Invalid ${key}`);
     const review = word.review;
     if (!review || !Number.isInteger(review.box) || review.box < 1 || review.box > 5 || !isDate(review.nextReviewDate) || !['reviewCount', 'streak'].every(key => Number.isSafeInteger(review[key]) && review[key] >= 0) || ![null, 'again', 'hard', 'good', 'easy'].includes(review.lastRating) || !(review.lastReviewedAt === null || isDate(review.lastReviewedAt)) || !(review.intervalDays === undefined || Number.isFinite(review.intervalDays) && review.intervalDays > 0)) throw new TypeError('Invalid review data');
     if (review.boxLabel !== undefined && review.boxLabel !== BOX_METRICS[review.box].label) throw new TypeError('Invalid box label');
