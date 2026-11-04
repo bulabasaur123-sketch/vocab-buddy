@@ -23,6 +23,7 @@ app.whenReady().then(() => {
 globalThis.fetch = async input => {
   const url = new URL(input);
   if (url.hostname === 'en.wiktionary.org') return Response.json({ parse: { text: { '*': '<h2>English</h2><h3>Etymology</h3><p>From Serendip, coined by Horace Walpole.</p>' } } });
+  if (url.pathname.endsWith('/unavailable.mp3')) return new Response('', { status: 502 });
   if (url.pathname.endsWith('.mp3')) {
     // A valid short PCM recording; MIME sniffing serves WAV despite the cache filename.
     const bytes = Buffer.alloc(444);
@@ -34,6 +35,7 @@ globalThis.fetch = async input => {
     return new Response(bytes);
   }
   const word = decodeURIComponent(url.pathname.split('/').pop());
+  if (word === 'audiounavailable') return Response.json([{phonetics:[],meanings:[{partOfSpeech:'noun',definitions:[{definition:'A word without an available recording.'}]}]}]);
   if (word === 'missingword') return new Response('', { status: 404 });
   if (['stymied', 'eking'].includes(word)) return Response.json([{ phonetics: [], meanings: [] }]);
   return Response.json([{ phonetic: '/fixture/', phonetics: [{ audio: 'https://api.dictionaryapi.dev/media/pronunciations/en/' + word + '-us.mp3' }], meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: `Definition for ${word}`, example: 'A fixture sentence.' }], synonyms: ['chance'] }] }]);

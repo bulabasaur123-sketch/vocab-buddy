@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('vocabAPI', {
   setWordTags: (id, tags) => ipcRenderer.invoke('vocab:tags:set', id, tags),
   generateQuiz: (mode, filter) => ipcRenderer.invoke('vocab:quiz:generate', mode, filter),
   submitQuiz: (id, success, linkToSrs) => ipcRenderer.invoke('vocab:quiz:submit', id, success, linkToSrs),
+  ensurePronunciation: word => ipcRenderer.invoke('vocab:audio:ensure', word),
+  repairPronunciations: () => ipcRenderer.invoke('vocab:audio:repair'),
   getAudioDataUrl: word => ipcRenderer.invoke('vocab:audio', word),
   loadWords: () => ipcRenderer.invoke('vocab:load'),
   saveWords: words => ipcRenderer.invoke('vocab:save', words),

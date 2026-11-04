@@ -114,3 +114,25 @@ not alter the existing flashcard review scheduling contract. There is no quiz
 history table in the specified schema. Word-array export/import retains tags,
 favorites, and membership IDs; referenced collections must already exist in the
 destination database, or the import rolls back without replacing the library.
+
+## Pronunciation reliability
+
+`ensurePronunciation(headword)` resolves recordings for an existing word and
+returns `{status: 'ready', dataUrl}` or `{status: 'unavailable'}`. All playback
+uses local MIME-tagged data after format-header validation. The existing named
+`getAudioDataUrl` remains a local-only read; page rendering never triggers remote
+lookup. Missing recordings can be requested with the same speaker button.
+
+`repairPronunciations()` powers Settings → Check missing pronunciations and
+returns `{checked, repaired, available, unavailable}`. Work is limited to two
+words concurrently; repeated same-word requests and bulk runs are coalesced.
+Only audio columns are updated. A late request cannot recreate a deleted word or
+change another record with the same headword and a different ID.
+
+Candidates include saved URLs, up to three dictionary recordings, and up to three
+English Wiktionary recordings. Wikimedia fallback slots are reserved. Downloads
+retain the HTTPS provider allowlist, redirect rejection, 10-second timeout and
+100KB cap. HTML/JSON, empty/oversized bodies and unsupported file headers are
+rejected before atomic publication. Existing caches undergo the same header
+checks. Header recognition is not full codec validation: decoding/output failures
+are announced next to the speaker and remain retryable. No device speech is used.

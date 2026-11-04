@@ -107,7 +107,7 @@ class ElectronVerification(unittest.TestCase):
 
     def test_bridge_and_storage_roundtrip(self):
         self.assertTrue(self.page.evaluate("typeof require === 'undefined' && typeof process === 'undefined'"))
-        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 21)
+        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 23)
         from contextlib import closing
         with closing(sqlite3.connect(Path(self.data.name) / "vocab_buddy.db")) as database:
             self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 3)
@@ -261,10 +261,10 @@ class ElectronVerification(unittest.TestCase):
         self.assertNotIn("media-src", result["violations"], result)
         self.assertEqual(result["status"], "playing")
 
-    def test_feat002_missing_audio_is_disabled(self):
+    def test_feat002_missing_audio_can_be_requested(self):
         self.reset([word("unrecorded")])
         button = self.page.locator(".btn-card-audio")
-        expect(button).to_be_disabled()
+        expect(button).to_be_enabled()
         self.assertIn("recording", (button.get_attribute("title") or "").lower())
 
     def test_feat002_rapid_audio_requests_cancel_previous_playback(self):
@@ -491,6 +491,47 @@ class ElectronVerification(unittest.TestCase):
         self.page.evaluate("desktopPrefs.set('reading_size','normal')")
         for c in self.page.evaluate('window.vocabAPI.getCollections()'):
             self.page.evaluate('id=>window.vocabAPI.deleteCollection(id)',c['id'])
+        self.assertFalse(self.errors)
+
+
+    def test_pronunciation_settings_repairs_only_audio_metadata(self):
+        entry=word('audiofallback')
+        entry['audioUrl']='https://api.dictionaryapi.dev/unavailable.mp3'
+        self.reset([entry])
+        before=self.page.evaluate('window.vocabAPI.loadWords()')[0]
+        self.page.locator('#nav-settings-btn').dispatch_event('click')
+        self.page.locator('#btn-repair-audio').dispatch_event('click')
+        expect(self.page.locator('#repair-audio-status')).to_contain_text('1 recordings added')
+        after=self.page.evaluate('window.vocabAPI.loadWords()')[0]
+        for key,value in before.items():
+            if key not in ['audioUrl','audioLocalPath','audioSizeBytes']:
+                self.assertEqual(after[key],value,key)
+        self.assertEqual(after['audioLocalPath'],'audiofallback.mp3')
+        self.assertTrue(self.page.evaluate("window.vocabAPI.getAudioDataUrl('audiofallback')").startswith('data:audio/wav;base64,'))
+        self.assertFalse(self.errors)
+
+    def test_pronunciation_failure_feedback_and_retry_remain_quiet(self):
+        self.reset([word('audiounavailable')])
+        button=self.page.locator('.btn-card-audio')
+        expect(button).to_be_enabled()
+        button.dispatch_event('click')
+        expect(self.page.locator('.audio-feedback')).to_have_text('Recording unavailable. Try again.')
+        expect(button).to_have_attribute('data-audio-state','unavailable')
+        expect(button).to_be_enabled()
+        button.dispatch_event('click')
+        expect(self.page.locator('.audio-feedback')).to_have_text('Recording unavailable. Try again.')
+        self.assertFalse(self.errors)
+
+    def test_pronunciation_playback_error_is_announced(self):
+        self.page.evaluate("window.vocabAPI.lookupWord('stymie')")
+        result=self.page.evaluate("""async () => {
+          const original=window.Audio;
+          window.Audio=class {play(){return Promise.reject(new Error('decode failed'));}pause(){}};
+          const button=document.querySelector('.btn-card-audio');
+          try {await playAudio('', 'stymie', button);return {message:button.parentElement.querySelector('.audio-feedback').textContent,busy:button.hasAttribute('aria-busy')};}
+          finally {window.Audio=original;}
+        }""")
+        self.assertEqual(result,dict(message='Recording unavailable. Try again.',busy=False))
         self.assertFalse(self.errors)
 
 

@@ -197,103 +197,64 @@ let currentPlayingButton = null;
 
 function hasAudioRecord(word) {
   if (!word) return false;
-  return Boolean(word.audioUrl || word.audioLocalPath);
+  return Boolean(word.audioLocalPath);
 }
 
 function updateAudioButtonState(button, hasAudio) {
   if (!button) return;
-  if (hasAudio) {
-    button.disabled = false;
-    button.title = 'Listen to pronunciation';
-  } else {
-    button.disabled = true;
-    button.title = 'No audio recording archived';
-  }
+  button.disabled = false;
+  button.dataset.audioState = hasAudio ? 'available' : 'find';
+  button.title = hasAudio ? 'Listen to pronunciation' : 'Find pronunciation recording';
+  button.setAttribute('aria-label',button.title);
 }
-
-async function playAudio(audioUrl, wordText, buttonEl) {
-  // 1. Cancel and pause any active audio playback immediately
-  if (state.activeAudio) {
-    try {
-      state.activeAudio.pause();
-    } catch { /* ignore */ }
-    state.activeAudio = null;
+function audioFeedback(button, message) {
+  if (!button) return;
+  let feedback = button.parentElement.querySelector('.audio-feedback');
+  if (!feedback) {
+    feedback = document.createElement('span'); feedback.className='audio-feedback';
+    feedback.setAttribute('role','status'); feedback.setAttribute('aria-live','polite');
+    button.parentElement.appendChild(feedback);
   }
-
-  // 2. Clear playing state from previous button
+  feedback.textContent=message;
+}
+async function playAudio(_audioUrl, wordText, buttonEl) {
+  const requestId=++currentAudioRequestId;
+  if (state.activeAudio) { try {state.activeAudio.pause();} catch {} state.activeAudio=null; }
   if (currentPlayingButton) {
-    currentPlayingButton.classList.remove('playing');
-    currentPlayingButton = null;
+    currentPlayingButton.classList.remove('playing'); currentPlayingButton.removeAttribute('aria-busy');
+    audioFeedback(currentPlayingButton,'');
   }
-
-  // 3. Increment request ID to supersede any in-flight requests
-  const requestId = ++currentAudioRequestId;
-  if (buttonEl) {
-    currentPlayingButton = buttonEl;
-    buttonEl.classList.add('playing');
-  }
-
-  const cleanup = () => {
-    if (requestId === currentAudioRequestId) {
-      if (buttonEl) buttonEl.classList.remove('playing');
-      if (currentPlayingButton === buttonEl) currentPlayingButton = null;
-      state.activeAudio = null;
+  currentPlayingButton=buttonEl;
+  if (buttonEl) { buttonEl.setAttribute('aria-busy','true'); buttonEl.dataset.audioState='loading'; audioFeedback(buttonEl,'Loading pronunciation…'); }
+  const finish = (failed=false) => {
+    if (requestId !== currentAudioRequestId) return;
+    if (buttonEl) {
+      buttonEl.classList.remove('playing'); buttonEl.removeAttribute('aria-busy');
+      buttonEl.dataset.audioState=failed?'unavailable':'available';
+      buttonEl.title=failed?'Retry pronunciation':'Listen to pronunciation';
+      buttonEl.setAttribute('aria-label',buttonEl.title);
+      audioFeedback(buttonEl,failed?'Recording unavailable. Try again.':'');
     }
+    state.activeAudio=null; currentPlayingButton=null;
   };
-
-  // 4. Try local cached lightweight audio from backend IPC
-  let dataUrl = null;
   try {
-    if (window.vocabAPI && window.vocabAPI.getAudioDataUrl && wordText) {
-      dataUrl = await window.vocabAPI.getAudioDataUrl(wordText);
+    let dataUrl=await window.vocabAPI.getAudioDataUrl(wordText);
+    if (requestId !== currentAudioRequestId) return;
+    if (!dataUrl) {
+      const result=await window.vocabAPI.ensurePronunciation(wordText);
+      if (requestId !== currentAudioRequestId) return;
+      dataUrl=result.status === 'ready' ? result.dataUrl : null;
     }
-  } catch (err) {
-    console.debug('Local audio cache retrieval failed, checking remote URL:', err);
-  }
-
-  // If a newer audio request was made while awaiting IPC, abort!
-  if (requestId !== currentAudioRequestId) {
-    return;
-  }
-
-  // 5. If local cached audio found, play it
-  if (dataUrl) {
-    if (state.activeAudio) {
-      try { state.activeAudio.pause(); } catch {}
-      state.activeAudio = null;
+    if (!dataUrl) { finish(true); return; }
+    const clip=new Audio(dataUrl); state.activeAudio=clip;
+    clip.onended=()=>finish(); clip.onerror=()=>finish(true);
+    await clip.play();
+    if (requestId !== currentAudioRequestId) {clip.pause();return;}
+    if (buttonEl && state.activeAudio === clip) {
+      buttonEl.removeAttribute('aria-busy'); buttonEl.classList.add('playing');
+      buttonEl.dataset.audioState='playing'; audioFeedback(buttonEl,'Playing pronunciation.');
     }
-    const audio = new Audio(dataUrl);
-    state.activeAudio = audio;
-    audio.onended = cleanup;
-    audio.onerror = cleanup;
-    try {
-      await audio.play();
-    } catch {
-      cleanup();
-    }
-    return;
-  }
-
-  // 6. Try remote audio URL
-  if (audioUrl && audioUrl.startsWith('http')) {
-    if (state.activeAudio) {
-      try { state.activeAudio.pause(); } catch {}
-      state.activeAudio = null;
-    }
-    const audio = new Audio(audioUrl);
-    state.activeAudio = audio;
-    audio.onended = cleanup;
-    audio.onerror = cleanup;
-    try {
-      await audio.play();
-    } catch {
-      cleanup();
-    }
-    return;
-  }
-
-  // 7. No audio recording available
-  cleanup();
+  } catch {finish(true);}
 }
 
 // ==========================================================================
@@ -1104,7 +1065,7 @@ function renderDefinitionQuestion(q) {
     <div class="quiz-prompt-header">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
         <h2 class="quiz-target-word">${escapeHtml(q.prompt)}</h2>
-        <button type="button" aria-label="Play pronunciation" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
+        <button type="button" aria-label="Play pronunciation" class="btn-icon-audio btn-quiz-audio"  title="${hasAudio ? 'Listen' : 'No audio'}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
             <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -1189,7 +1150,7 @@ function renderMissingLettersQuestion(q) {
     <div class="missing-letters-masked">${escapeHtml(q.maskedWord)}</div>
     <div class="phonetic-row" style="justify-content: center; margin-bottom: 0.5rem;">
       <span class="phonetic-mono">${escapeHtml(q.phonetic || '')}</span>
-      <button type="button" aria-label="Play pronunciation" class="btn-icon-audio btn-quiz-audio" ${hasAudio ? '' : 'disabled'} title="${hasAudio ? 'Listen' : 'No audio'}">
+      <button type="button" aria-label="Play pronunciation" class="btn-icon-audio btn-quiz-audio"  title="${hasAudio ? 'Listen' : 'No audio'}">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
           <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>

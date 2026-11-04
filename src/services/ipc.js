@@ -1,4 +1,5 @@
 'use strict';
+const { PronunciationService } = require('./pronunciation');
 const { QuizEngine } = require('./quizEngine');
 const path = require('node:path');
 const { AudioStorageService } = require('./audioStorage');
@@ -7,7 +8,10 @@ function createBackendServices(userData, fetchImpl = globalThis.fetch) {
   return { audio, dictionary: require('./dictionary').createDictionaryService(fetchImpl, audio) };
 }
 function registerHandlers(ipcMain, store, dictionary, trustedFrame, audio = null) {
+  const pronunciation = audio ? new PronunciationService(store.storage ?? store, dictionary, audio) : null;
   const handlers = {
+    'vocab:audio:ensure': word => { if (!pronunciation) throw new Error('Pronunciation service unavailable'); return pronunciation.ensure(word); },
+    'vocab:audio:repair': () => { if (!pronunciation) throw new Error('Pronunciation service unavailable'); return pronunciation.repair(); },
     'vocab:favorite:toggle': id => store.toggleFavorite(id),
     'vocab:collections:list': () => store.getCollections(),
     'vocab:collections:create': ({ name, description, colorAccent }) => store.createCollection(name, description, colorAccent),

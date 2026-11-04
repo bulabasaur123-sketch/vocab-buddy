@@ -68,7 +68,7 @@ function renderDesktopLibrary() {
       <p class="card-definition">${escapeHtml(def)}</p><p class="card-source-cite">${escapeHtml(word.bookSource || 'No source recorded')}</p>
       ${word.inflectedForm ? `<p class="card-inflected-cite">Encountered as: <em>${escapeHtml(word.inflectedForm)}</em></p>` : ''}</div>
       <div class="word-actions"><button type="button" class="btn-card-fav btn-icon-fav ${word.isFavorite ? 'active' : ''}" aria-label="Favorite ${escapeHtml(word.word)}" aria-pressed="${word.isFavorite}">${word.isFavorite ? '★' : '☆'}</button>
-      <button type="button" class="btn-card-audio btn-icon-audio" aria-label="Play pronunciation for ${escapeHtml(word.word)}" title="${hasAudioRecord(word) ? 'Listen' : 'No audio recording archived'}" ${hasAudioRecord(word) ? '' : 'disabled'}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M16 8a6 6 0 0 1 0 8"/></svg></button>
+      <button type="button" class="btn-card-audio btn-icon-audio" aria-label="Play pronunciation for ${escapeHtml(word.word)}" title="${hasAudioRecord(word) ? 'Listen to pronunciation' : 'Find pronunciation recording'}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M16 8a6 6 0 0 1 0 8"/></svg></button>
       <div class="word-cadence"><button type="button" class="btn-stamp-trigger box-stamp ${word.review.box >= 5 ? 'mastered' : ''}" aria-label="Review schedule for ${escapeHtml(word.word)}">Box ${word.review.box} · ${escapeHtml(word.review.boxLabel)}</button><span class="word-due">${formatNextReview(word.review.nextReviewDate)}</span></div></div>`;
     card.addEventListener('click', event => { if (!event.target.closest('.word-actions')) openDetailModal(word); });
     card.querySelector('.btn-card-fav').addEventListener('click', async () => {
@@ -77,6 +77,7 @@ function renderDesktopLibrary() {
     });
     card.querySelector('.btn-stamp-trigger').addEventListener('click', event => openCadenceModal(event.currentTarget));
     const audio = card.querySelector('.btn-card-audio');
+    updateAudioButtonState(audio,hasAudioRecord(word));
     audio.addEventListener('click', () => playAudio(word.audioUrl, word.word, audio));
     if (!hasAudioRecord(word)) window.vocabAPI?.getAudioDataUrl?.(word.word).then(data => { if (data) updateAudioButtonState(audio,true); }).catch(() => {});
     fragment.appendChild(card);
@@ -104,6 +105,17 @@ function renderShelves() {
 function setupDesktop() {
   state.page = 1; state.sort = desktopPrefs.get('sort','alpha'); state.layout = desktopPrefs.get('layout','list');
   document.getElementById('sort-words').value = state.sort;
+  document.getElementById('btn-repair-audio').addEventListener('click', async event => {
+    const button=event.currentTarget, feedback=document.getElementById('repair-audio-status');
+    button.disabled=true; button.setAttribute('aria-busy','true');
+    feedback.textContent='Checking saved pronunciations… You can keep using your lexicon.';
+    try {
+      const result=await window.vocabAPI.repairPronunciations();
+      feedback.textContent=`${result.repaired} recordings added; ${result.available} already available; ${result.unavailable} still unavailable. Checked ${result.checked} words.`;
+      await refreshAll();
+    } catch { feedback.textContent='Pronunciations could not be checked. Your words are safe. Try again.'; }
+    finally {button.disabled=false;button.removeAttribute('aria-busy');}
+  });
   const size = document.getElementById('reading-size'); size.value = desktopPrefs.get('reading_size','normal'); document.body.classList.toggle('large-reading',size.value === 'large');
   size.addEventListener('change', () => { desktopPrefs.set('reading_size',size.value); document.body.classList.toggle('large-reading',size.value === 'large'); });
   document.getElementById('btn-add-word').addEventListener('click', openCapture);

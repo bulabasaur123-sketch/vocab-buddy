@@ -206,3 +206,5 @@ body[data-view="review"] .colophon, body[data-view="quiz"] .colophon { display: 
 .audio-feedback:empty { display: none; }
 [data-audio-state="loading"] { color: var(--text-secondary); }
 [data-audio-state="playing"] { color: var(--text-accent); }
+.word-actions { flex-wrap: wrap; }
+.word-actions .audio-feedback { grid-column: 1 / -1; justify-self: start; max-width: 15rem; }

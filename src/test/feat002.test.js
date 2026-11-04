@@ -17,7 +17,7 @@ function directory(t) {
 const audioUrl = 'https://api.dictionaryapi.dev/media/pronunciations/en/stymie-us.mp3';
 for (const [query, root] of [['stymied', 'stymie'], ['eking', 'eke'], ['beauties', 'beauty']]) {
   test(`${query} resolves and inherits canonical pronunciation, meanings and cached audio`, async t => {
-    const audio = new AudioStorageService(directory(t), async () => new Response(Buffer.alloc(22528, 1)));
+    const audio = new AudioStorageService(directory(t), async () => new Response(Buffer.concat([Buffer.from('ID3'),Buffer.alloc(22525, 1)])));
     const dictionary = createDictionaryService(async url => {
       if (url.includes('wiktionary.org')) return Response.json({});
       const word = decodeURIComponent(url.split('/').pop());
@@ -65,7 +65,7 @@ test('Wikimedia Ogg fallback is cached and served with the correct MIME type', a
 });
 test('Cache downloads once, survives restart and enforces per-call size caps', async t => {
   let requests = 0; const dir = directory(t);
-  const audio = new AudioStorageService(dir, async () => { requests++; return new Response(Buffer.alloc(22528)); });
+  const audio = new AudioStorageService(dir, async () => { requests++; return new Response(Buffer.concat([Buffer.from('ID3'),Buffer.alloc(22525)])); });
   const results = await Promise.all([audio.cacheAudio('word', audioUrl), audio.cacheAudio('word', audioUrl)]);
   assert.deepEqual(results[0], { localPath: 'word.mp3', sizeBytes: 22528 }); assert.equal(requests, 1);
   const restarted = new AudioStorageService(dir, async () => { throw new Error('offline'); });

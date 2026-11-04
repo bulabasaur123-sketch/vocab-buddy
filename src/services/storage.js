@@ -86,6 +86,13 @@ class StorageService {
   }
   selectOne(id) { const row = this.selectRow.get(id); return row ? this.hydrate(row) : undefined; }
   getWords() { return this.loadWords(); }
+  getWordByHeadword(word) { const row = this.db.prepare('SELECT * FROM words WHERE word = ?').get(word); return row ? this.hydrate(row) : null; }
+  updatePronunciation(id, { audioUrl, audioLocalPath, audioSizeBytes }) {
+    const word = this.selectOne(id);
+    if (!word) return false;
+    validateWords([{ ...word, audioUrl, audioLocalPath, audioSizeBytes }]);
+    return this.db.prepare('UPDATE words SET audio_url = ?, audio_local_path = ?, audio_size_bytes = ? WHERE id = ?').run(audioUrl, audioLocalPath, audioSizeBytes, id).changes > 0;
+  }
   loadWords() { return this.selectAll.all().map(row => this.hydrate(row)); }
   requireWord(id) { if (!this.selectRow.get(id)) throw new Error('Word not found'); }
   toggleFavorite(id) {

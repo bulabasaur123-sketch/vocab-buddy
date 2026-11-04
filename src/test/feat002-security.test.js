@@ -11,7 +11,7 @@ test('Cache rejects traversal, symlink reads and untrusted origins; permits the 
   let requests = 0;
   const cache = new AudioStorageService(path.join(dir, 'audio'), async (_url, options) => {
     requests++; assert.equal(options.redirect, 'error');
-    return new Response(Buffer.alloc(102400));
+    return new Response(Buffer.concat([Buffer.from('ID3'),Buffer.alloc(102397)]));
   });
   fs.writeFileSync(path.join(dir, 'private'), 'private');
   fs.symlinkSync(path.join(dir, 'private'), path.join(dir, 'audio', 'linked.mp3'));
