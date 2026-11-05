@@ -1217,10 +1217,6 @@ async function handleOptionSelected(q, selectedIndex) {
   if (isCorrect) {
     state.quiz.score++;
     showQuizFeedback(true, '✓ Correct recall.');
-    const targetWord = state.words.find(w => w.id === q.wordId);
-    if (targetWord && hasAudioRecord(targetWord)) {
-      playAudio(targetWord.audioUrl, targetWord.word, null);
-    }
   } else {
     showQuizFeedback(false, `✗ Incorrect. Correct: "${q.options[q.correctAnswerIndex]}"`);
   }

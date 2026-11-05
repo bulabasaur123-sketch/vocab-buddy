@@ -342,6 +342,11 @@ class ElectronVerification(unittest.TestCase):
                 self.page.locator("#quiz-link-srs").check()
                 self.page.locator("#btn-start-quiz").dispatch_event("click")
                 expect(self.page.locator("#quiz-arena")).to_be_visible()
+                self.page.evaluate("""() => {
+                  window.quizAudioCalls = 0;
+                  playAudio = () => { window.quizAudioCalls++; };
+                  state.words.forEach(w => { w.audioLocalPath = 'cached-recording.mp3'; });
+                }""")
                 for index in range(5):
                     q = self.page.evaluate("state.quiz.deck[state.quiz.index]")
                     if mode == "missing_letters":
@@ -351,6 +356,8 @@ class ElectronVerification(unittest.TestCase):
                         self.page.locator(".quiz-option-btn").nth(q["correctAnswerIndex"]).dispatch_event("click")
                     wait_for(self.page, "!document.querySelector('#quiz-actions').classList.contains('hidden')")
                     self.page.locator("#btn-quiz-next").dispatch_event("click")
+                self.assertEqual(self.page.evaluate("window.quizAudioCalls"), 0,
+                                 "Quiz answers must not automatically play pronunciation")
                 expect(self.page.locator("#quiz-complete-score")).to_contain_text("5 / 5 (100%)")
                 saved = self.page.evaluate("window.vocabAPI.loadWords()")
                 self.assertEqual(sum(w["review"]["reviewCount"] for w in saved), 5)
