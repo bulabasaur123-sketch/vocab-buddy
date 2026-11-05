@@ -1432,8 +1432,16 @@ el.btnReturnLexicon.addEventListener('click', () => switchView('lexicon'));
 function switchView(viewName) {
   if ((state.quiz.isSubmitting || state.isSubmittingRating) && viewName !== state.activeView) { announce('Please wait while your answer is saved.'); return; }
   closeDetailModal();
+  if (viewName !== 'connections' && document.body.classList.contains('map-fullscreen')) {
+    document.body.classList.remove('map-fullscreen');
+    if (typeof updateFullScreenUI === 'function') updateFullScreenUI();
+  }
   state.activeView = viewName;
   document.body.dataset.view = viewName;
+  if (viewName === 'connections' && document.fullscreenElement) {
+    document.body.classList.add('map-fullscreen');
+    if (typeof updateFullScreenUI === 'function') updateFullScreenUI();
+  }
   for (const name of ['lexicon','review','quiz','connections','shelves','settings']) {
     const button = document.getElementById(`nav-${name}-btn`);
     if (!button) continue;

@@ -1117,3 +1117,8 @@ function setupModalAssociationForm() {
   });
 }
 
+window.resizeConnectionsCanvas = resizeConnectionsCanvas;
+window.drawConnectionsCanvas = drawConnectionsCanvas;
+window.fitConnectionsView = fitConnectionsView;
+
+

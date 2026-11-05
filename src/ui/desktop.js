@@ -103,13 +103,32 @@ function renderShelves() {
   }
 }
 function toggleFullScreen() {
-  if (!document.fullscreenElement) {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen().catch(() => {});
+  const isDocFs = Boolean(document.fullscreenElement);
+  const isMapFs = document.body.classList.contains('map-fullscreen');
+
+  if (state.activeView === 'connections') {
+    if (isDocFs || isMapFs) {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      document.body.classList.remove('map-fullscreen');
+      updateFullScreenUI();
+    } else {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      document.body.classList.add('map-fullscreen');
+      updateFullScreenUI();
     }
   } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
+    if (!document.fullscreenElement) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
     }
   }
 }
@@ -117,15 +136,33 @@ function toggleFullScreen() {
 function updateFullScreenUI() {
   const isFs = Boolean(document.fullscreenElement);
   document.body.classList.toggle('is-fullscreen', isFs);
+
+  if (!isFs && document.body.classList.contains('map-fullscreen')) {
+    document.body.classList.remove('map-fullscreen');
+  } else if (isFs && state.activeView === 'connections') {
+    document.body.classList.add('map-fullscreen');
+  }
+
+  const isMapActive = document.body.classList.contains('map-fullscreen') || (isFs && state.activeView === 'connections');
+
   const label = document.getElementById('fullscreen-btn-label');
   if (label) label.textContent = isFs ? 'Exit full screen' : 'Enter full screen';
   const fsBtn = document.getElementById('btn-fullscreen-toggle');
   if (fsBtn) fsBtn.setAttribute('aria-pressed', String(isFs));
+
   const mapFsBtn = document.getElementById('map-btn-fullscreen');
   if (mapFsBtn) {
-    mapFsBtn.setAttribute('aria-pressed', String(isFs));
-    mapFsBtn.textContent = isFs ? '⛶ Exit Full' : '⛶ Full Screen';
-    mapFsBtn.title = isFs ? 'Exit full screen (F11)' : 'Toggle full screen (F11)';
+    mapFsBtn.setAttribute('aria-pressed', String(isMapActive));
+    mapFsBtn.classList.toggle('active', isMapActive);
+    mapFsBtn.textContent = isMapActive ? '⛶ Exit Full' : '⛶ Full Screen';
+    mapFsBtn.title = isMapActive ? 'Exit full screen (F11 or Esc)' : 'Toggle full screen (F11)';
+  }
+
+  if (state.activeView === 'connections') {
+    setTimeout(() => {
+      if (typeof resizeConnectionsCanvas === 'function') resizeConnectionsCanvas();
+      if (typeof drawConnectionsCanvas === 'function') drawConnectionsCanvas();
+    }, 60);
   }
 }
 
@@ -194,6 +231,17 @@ function setupDesktop() {
     if (modal && e.key === 'Escape') {
       e.preventDefault();e.stopImmediatePropagation();
       if (modal.id === 'add-word-modal') closeCapture(); else if (modal.id === 'collection-modal') closeCollectionModal(); else closeCadenceModal();
+      return;
+    }
+    if (el.detailModal && !el.detailModal.classList.contains('hidden') && e.key === 'Escape') {
+      e.preventDefault();e.stopImmediatePropagation();
+      closeDetailModal();
+      return;
+    }
+    if (document.body.classList.contains('map-fullscreen') && e.key === 'Escape') {
+      e.preventDefault();
+      toggleFullScreen();
+      return;
     }
     if (active || ['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName) || e.target.isContentEditable) return;
     if (state.activeView === 'lexicon' && !e.ctrlKey && !e.metaKey && !e.altKey) {

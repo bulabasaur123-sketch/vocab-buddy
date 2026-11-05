@@ -272,3 +272,117 @@ body[data-view="review"] .colophon, body[data-view="quiz"] .colophon { display: 
 .association-input-form .assoc-note-field { flex: 1.5; min-width: 10rem; }
 .association-input-form .btn-add-assoc { white-space: nowrap; }
 
+/* Fullscreen Immersive Map Mode */
+body.map-fullscreen {
+  overflow: hidden !important;
+}
+
+body.map-fullscreen .sidebar,
+body.map-fullscreen .colophon,
+body.map-fullscreen #view-connections > .page-heading {
+  display: none !important;
+}
+
+body.map-fullscreen #view-connections {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 100 !important;
+  background: var(--bg-surface) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+body.map-fullscreen .connections-toolbar {
+  position: absolute !important;
+  top: var(--space-4) !important;
+  left: var(--space-6) !important;
+  right: var(--space-6) !important;
+  z-index: 30 !important;
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-control) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12) !important;
+  padding: var(--space-3) var(--space-4) !important;
+  margin: 0 !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+body.theme-dark.map-fullscreen .connections-toolbar {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45) !important;
+}
+
+body.map-fullscreen .connections-arena {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: var(--bg-surface) !important;
+}
+
+body.map-fullscreen .connections-canvas-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+body.map-fullscreen .connections-canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+body.map-fullscreen .connections-prompt {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  margin: 0 !important;
+  max-width: 28rem !important;
+  text-align: center !important;
+  z-index: 15 !important;
+}
+
+body.map-fullscreen .connections-companion-list {
+  position: absolute !important;
+  top: 4.75rem !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  max-height: none !important;
+  height: calc(100vh - 4.75rem) !important;
+  padding: var(--space-6) var(--space-8) !important;
+  overflow-y: auto !important;
+  background: var(--bg-surface) !important;
+  z-index: 10 !important;
+}
+
+body.map-fullscreen .modal-scrim {
+  z-index: 1100 !important;
+}
+
+#map-btn-fullscreen.active {
+  background: var(--bg-surface-selected);
+  color: var(--text-accent);
+  border-color: var(--text-accent);
+}
+
+@media (max-width: 768px) {
+  body.map-fullscreen .connections-toolbar {
+    left: var(--space-2) !important;
+    right: var(--space-2) !important;
+    top: var(--space-2) !important;
+    padding: var(--space-2) !important;
+  }
+}
+
+

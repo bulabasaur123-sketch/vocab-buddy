@@ -572,6 +572,14 @@ class ElectronVerification(unittest.TestCase):
         expect(self.page.locator("#connections-canvas-container")).to_be_visible()
         expect(self.page.locator("#connections-companion-list")).to_be_hidden()
 
+        # Test full screen map view with selected word
+        self.page.locator("#map-btn-fullscreen").dispatch_event("click")
+        wait_for(self.page, "document.body.classList.contains('map-fullscreen')")
+        expect(self.page.locator(".sidebar")).to_be_hidden()
+        self.page.screenshot(path="/home/zeto/.gemini/antigravity/brain/cdcb9545-2752-4ece-a3b6-4a69b0525d61/map_fullscreen_active.png")
+        self.page.locator("#map-btn-fullscreen").dispatch_event("click")
+        wait_for(self.page, "!document.body.classList.contains('map-fullscreen')")
+
         # Test zoom and fit controls
         initial_zoom = self.page.evaluate("connectionsState.zoom")
         self.page.locator("#map-btn-zoom-in").dispatch_event("click")
@@ -624,6 +632,10 @@ class ElectronVerification(unittest.TestCase):
         self.assertFalse(self.errors)
 
     def test_fullscreen_controls_and_shortcuts(self):
+        w1 = word("ephemeral")
+        w2 = word("dalliance")
+        self.reset([w1, w2])
+
         # Settings button exists and has initial state
         self.page.locator("#nav-settings-btn").dispatch_event("click")
         fs_btn = self.page.locator("#btn-fullscreen-toggle")
@@ -632,6 +644,7 @@ class ElectronVerification(unittest.TestCase):
 
         # Connections button exists
         self.page.locator("#nav-connections-btn").dispatch_event("click")
+        expect(self.page.locator("#view-connections")).to_be_visible()
         map_fs_btn = self.page.locator("#map-btn-fullscreen")
         expect(map_fs_btn).to_be_visible()
         expect(map_fs_btn).to_contain_text("Full Screen")
@@ -639,10 +652,30 @@ class ElectronVerification(unittest.TestCase):
         map_fs_btn.click()
         try:
             wait_for(self.page, "document.fullscreenElement === document.documentElement")
+            wait_for(self.page, "document.body.classList.contains('map-fullscreen')")
             expect(map_fs_btn).to_have_attribute("aria-pressed", "true")
             expect(map_fs_btn).to_contain_text("Exit Full")
+
+            # Verify sidebar is hidden in full-screen map mode
+            expect(self.page.locator(".sidebar")).to_be_hidden()
+            expect(self.page.locator(".connections-toolbar")).to_be_visible()
+
+            # Capture artifact screenshot
+            self.page.screenshot(path="/home/zeto/.gemini/antigravity/brain/cdcb9545-2752-4ece-a3b6-4a69b0525d61/map_fullscreen_test.png")
+
             map_fs_btn.click()
             wait_for(self.page, "document.fullscreenElement === null")
+            wait_for(self.page, "!document.body.classList.contains('map-fullscreen')")
+            expect(self.page.locator(".sidebar")).to_be_visible()
+
+            # Exercise F11 in connections view
+            self.page.keyboard.press("F11")
+            wait_for(self.page, "document.fullscreenElement !== null")
+            wait_for(self.page, "document.body.classList.contains('map-fullscreen')")
+            self.page.keyboard.press("F11")
+            wait_for(self.page, "document.fullscreenElement === null")
+            wait_for(self.page, "!document.body.classList.contains('map-fullscreen')")
+
             self.page.locator("#nav-settings-btn").click()
             fs_btn.click()
             wait_for(self.page, "document.fullscreenElement !== null")
