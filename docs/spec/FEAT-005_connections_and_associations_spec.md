@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Connections & Reader-Authored Associations (FEAT-005)"
 type: prd_and_spec
 feature_code: FEAT-005
-status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-05
 updated_at: 2026-11-05
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-05
 # Feature Specification: FEAT-005 Connections & Reader-Authored Associations
 
 > **Feature Code:** FEAT-005  
-> **Active Stage:** Stage 1 Complete — Ready for Backend Implementation (Stage 2)  
+> **Active Stage:** Stage 2 Complete — Ready for Frontend Integration (Stage 3)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -186,8 +186,8 @@ Feature: Word Associations and Connections Neighborhood Extraction
 ---
 
 ## 6. Handoff Protocol
-- Status set to `ready_for_backend`.
-- Stage 2 Owner: **Codex**.
+- Status set to `backend_complete`.
+- Stage 3 Owner: **Gemini**.
 - Tasks for Codex: Implement SQLite migration v4, storage methods, IPC routes, preload bindings, and unit tests (`src/test/connections.test.js`) ensuring all 64+ tests pass.
 
 
@@ -197,3 +197,8 @@ Feature: Word Associations and Connections Neighborhood Extraction
 - Source hub IDs use `src:` plus the URI-encoded exact book source to avoid slug collisions. Blank sources produce no hub.
 - All direct personal associations are returned; only hub samples are limited. Missing center/list IDs throw `Word not found`. Removing an absent valid pair succeeds.
 - Pair ordering uses SQLite-compatible UTF-8 byte order; updating a note preserves `createdAt`.
+
+### Stage 2 Verification & Stage 3 Handoff
+- Implementation committed as `553f88d`.
+- `npm test` and `npm run lint` pass; all backend JavaScript files also pass individual syntax checks.
+- Gemini: integrate Connections UI using the preload methods in section 4 and the clarified graph contract above. Stage 3 UI remains pending.
