@@ -611,6 +611,20 @@ class ElectronVerification(unittest.TestCase):
         self.page.locator("#modal-close").dispatch_event("click")
         self.assertFalse(self.errors)
 
+    def test_fullscreen_controls_and_shortcuts(self):
+        # Settings button exists and has initial state
+        self.page.locator("#nav-settings-btn").dispatch_event("click")
+        fs_btn = self.page.locator("#btn-fullscreen-toggle")
+        expect(fs_btn).to_be_visible()
+        expect(fs_btn).to_contain_text("Enter full screen")
+
+        # Connections button exists
+        self.page.locator("#nav-connections-btn").dispatch_event("click")
+        map_fs_btn = self.page.locator("#map-btn-fullscreen")
+        expect(map_fs_btn).to_be_visible()
+        expect(map_fs_btn).to_contain_text("Full Screen")
+        self.assertFalse(self.errors)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

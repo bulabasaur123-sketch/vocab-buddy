@@ -102,6 +102,33 @@ function renderShelves() {
     list.appendChild(item);
   }
 }
+function toggleFullScreen() {
+  if (!document.fullscreenElement) {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+}
+
+function updateFullScreenUI() {
+  const isFs = Boolean(document.fullscreenElement);
+  document.body.classList.toggle('is-fullscreen', isFs);
+  const label = document.getElementById('fullscreen-btn-label');
+  if (label) label.textContent = isFs ? 'Exit full screen' : 'Enter full screen';
+  const fsBtn = document.getElementById('btn-fullscreen-toggle');
+  if (fsBtn) fsBtn.setAttribute('aria-pressed', String(isFs));
+  const mapFsBtn = document.getElementById('map-btn-fullscreen');
+  if (mapFsBtn) {
+    mapFsBtn.setAttribute('aria-pressed', String(isFs));
+    mapFsBtn.textContent = isFs ? '⛶ Exit Full' : '⛶ Full Screen';
+    mapFsBtn.title = isFs ? 'Exit full screen (F11)' : 'Toggle full screen (F11)';
+  }
+}
+
 function setupDesktop() {
   state.page = 1; state.sort = desktopPrefs.get('sort','alpha'); state.layout = desktopPrefs.get('layout','list');
   document.getElementById('sort-words').value = state.sort;
@@ -118,6 +145,9 @@ function setupDesktop() {
   });
   const size = document.getElementById('reading-size'); size.value = desktopPrefs.get('reading_size','normal'); document.body.classList.toggle('large-reading',size.value === 'large');
   size.addEventListener('change', () => { desktopPrefs.set('reading_size',size.value); document.body.classList.toggle('large-reading',size.value === 'large'); });
+  const fsBtn = document.getElementById('btn-fullscreen-toggle');
+  if (fsBtn) fsBtn.addEventListener('click', toggleFullScreen);
+  document.addEventListener('fullscreenchange', updateFullScreenUI);
   document.getElementById('btn-add-word').addEventListener('click', openCapture);
   document.getElementById('add-word-close').addEventListener('click',closeCapture);
   document.getElementById('btn-create-shelf').addEventListener('click',openCollectionModal);
@@ -147,6 +177,11 @@ function setupDesktop() {
   new MutationObserver(syncInert).observe(document.querySelector('.site-wrapper'), {subtree:true,attributes:true,attributeFilter:['class']});
   for (const d of dialogs) d.addEventListener('click', e => { if (e.target === d && d.id === 'add-word-modal') closeCapture(); });
   document.addEventListener('keydown', e => {
+    if (e.key === 'F11') {
+      e.preventDefault();
+      toggleFullScreen();
+      return;
+    }
     const modal = dialogs.find(d => !d.classList.contains('hidden'));
     const narrowDetail = !matchMedia('(min-width: 1180px)').matches && !el.detailModal.classList.contains('hidden') ? el.detailModal : null;
     const active = modal || narrowDetail;

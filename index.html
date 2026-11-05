@@ -347,6 +347,7 @@
             <button type="button" id="map-btn-fit" class="btn-subtle" title="Recenter and fit view">Fit View</button>
             <button type="button" id="map-btn-zoom-in" class="btn-subtle" title="Zoom in" aria-label="Zoom in">+</button>
             <button type="button" id="map-btn-zoom-out" class="btn-subtle" title="Zoom out" aria-label="Zoom out">−</button>
+            <button type="button" id="map-btn-fullscreen" class="btn-subtle" title="Toggle full screen (F11)" aria-label="Toggle full screen">⛶ Full Screen</button>
           </div>
         </div>
 
@@ -392,10 +393,10 @@
       </section>
       <section id="view-settings" class="view-panel hidden" aria-labelledby="settings-title">
         <header class="page-heading"><div><p class="eyebrow">Make yourself at home</p><h1 id="settings-title">Settings</h1><p class="page-description">Reading preferences and your library.</p></div></header>
-        <div class="settings-section"><h2>Appearance</h2><p>Choose a comfortable reading environment.</p><button id="btn-theme-toggle" class="btn-subtle"><span class="theme-label-light">Use dark appearance</span><span class="theme-label-dark">Use light appearance</span></button><label for="reading-size">Reading size</label><select id="reading-size" class="filter-select"><option value="normal">Standard</option><option value="large">Large</option></select></div>
+        <div class="settings-section"><h2>Appearance</h2><p>Choose a comfortable reading environment.</p><button id="btn-theme-toggle" class="btn-subtle"><span class="theme-label-light">Use dark appearance</span><span class="theme-label-dark">Use light appearance</span></button><button id="btn-fullscreen-toggle" class="btn-subtle" type="button"><span id="fullscreen-btn-label">Enter full screen</span> <kbd>F11</kbd></button><label for="reading-size">Reading size</label><select id="reading-size" class="filter-select"><option value="normal">Standard</option><option value="large">Large</option></select></div>
         <div class="settings-section"><h2>Your library</h2><p>Export your vocabulary as a JSON file. Shelf definitions are not included in this export.</p><button id="btn-export" class="btn-subtle">Export vocabulary</button></div>
         <div class="settings-section"><h2>Pronunciation</h2><p>Keep available recordings on this device for offline listening. Missing recordings are checked against alternative sources.</p><button id="btn-repair-audio" class="btn-subtle">Check missing pronunciations</button><p id="repair-audio-status" role="status" aria-live="polite"></p></div>
-        <div class="settings-section"><h2>Learning & keyboard</h2><p>Review uses five Leitner boxes. Correct recall moves a word further from its next review.</p><button id="btn-cadence-guide" class="btn-subtle">How review scheduling works</button><dl class="shortcut-list"><dt>N</dt><dd>Add a word from Lexicon</dd><dt>/</dt><dd>Search Lexicon</dd><dt>Space / Enter</dt><dd>Reveal a review card</dd><dt>1–4</dt><dd>Grade a revealed card or answer a quiz</dd><dt>Escape</dt><dd>Close a dialog or word detail</dd></dl></div>
+        <div class="settings-section"><h2>Learning & keyboard</h2><p>Review uses five Leitner boxes. Correct recall moves a word further from its next review.</p><button id="btn-cadence-guide" class="btn-subtle">How review scheduling works</button><dl class="shortcut-list"><dt>N</dt><dd>Add a word from Lexicon</dd><dt>/</dt><dd>Search Lexicon</dd><dt>Space / Enter</dt><dd>Reveal a review card</dd><dt>1–4</dt><dd>Grade a revealed card or answer a quiz</dd><dt>F11</dt><dd>Toggle full screen</dd><dt>Escape</dt><dd>Close a dialog or word detail</dd></dl></div>
       </section>
     </main>
 

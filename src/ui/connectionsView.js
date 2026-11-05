@@ -74,6 +74,13 @@ function initConnectionsView() {
     btnZoomOut.addEventListener('click', () => zoomConnections(1 / 1.25));
   }
 
+  const btnFullscreen = document.getElementById('map-btn-fullscreen');
+  if (btnFullscreen) {
+    btnFullscreen.addEventListener('click', () => {
+      if (typeof toggleFullScreen === 'function') toggleFullScreen();
+    });
+  }
+
   setupConnectionsCanvas();
   setupModalAssociationForm();
 }
@@ -1109,3 +1116,4 @@ function setupModalAssociationForm() {
     }
   });
 }
+
