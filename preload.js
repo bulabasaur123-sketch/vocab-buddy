@@ -1,6 +1,10 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('vocabAPI', {
+  addAssociation: (...args) => ipcRenderer.invoke('vocab:associations:add', ...args),
+  removeAssociation: (...args) => ipcRenderer.invoke('vocab:associations:remove', ...args),
+  getAssociations: id => ipcRenderer.invoke('vocab:associations:list', id),
+  getConnectionsNeighborhood: (...args) => ipcRenderer.invoke('vocab:connections:neighborhood', ...args),
   toggleFavorite: id => ipcRenderer.invoke('vocab:favorite:toggle', id),
   getCollections: () => ipcRenderer.invoke('vocab:collections:list'),
   createCollection: collection => ipcRenderer.invoke('vocab:collections:create', collection),

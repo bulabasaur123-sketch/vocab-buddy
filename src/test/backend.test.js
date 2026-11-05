@@ -46,7 +46,7 @@ test('Storage creates nested directories, seeds once, persists payload and empty
   assert.equal(storage.loadWords().length, 1);
   const words = starterWords(now); words[0].bookSource = 'Dune'; assert.equal(storage.saveWords(words), true);
   assert.deepEqual(new StorageService(dir).loadWords(), words);
-  assert.equal(storage.db.prepare('PRAGMA user_version').get().user_version, 3);
+  assert.equal(storage.db.prepare('PRAGMA user_version').get().user_version, 4);
   assert.equal(storage.db.prepare('SELECT COUNT(*) AS n FROM words').get().n, 1);
   storage.saveWords([]); assert.deepEqual(new StorageService(dir).loadWords(), []);
 });
@@ -90,7 +90,7 @@ test('Preload exposes only named channel wrappers, never raw IPC', async () => {
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../preload.js'), 'utf8'), { require: name => {
     assert.equal(name, 'electron'); return { contextBridge: { exposeInMainWorld: (name, value) => { assert.equal(name, 'vocabAPI'); api = value; } }, ipcRenderer: { invoke: (...args) => calls.push(args) } };
   } });
-  assert.equal(Object.keys(api).length, 23); api.lookupWord('test'); api.reviewWord('id', 'again');
+  assert.equal(Object.keys(api).length, 27); api.lookupWord('test'); api.reviewWord('id', 'again');
   assert.deepEqual(calls, [['vocab:lookup', 'test', ''], ['vocab:review', 'id', 'again']]);
   assert.equal(api.invoke, undefined);
 });

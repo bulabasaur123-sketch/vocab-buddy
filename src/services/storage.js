@@ -130,6 +130,61 @@ class StorageService {
   getWordTags(id) { return this.db.prepare('SELECT tag FROM word_tags WHERE word_id = ? ORDER BY rowid').all(id).map(row => row.tag); }
   getAllTags() { return this.db.prepare('SELECT tag, COUNT(*) AS count FROM word_tags GROUP BY tag ORDER BY tag').all().map(row => ({ ...row })); }
   getWordsByTag(tag) { return this.db.prepare('SELECT w.* FROM words w JOIN word_tags t ON t.word_id = w.id WHERE t.tag = ? ORDER BY w.rowid').all(normalizeTag(tag)).map(row => this.hydrate(row)); }
+  addAssociation(wordId1, wordId2, note = '') {
+    const [a, b] = associationPair(wordId1, wordId2);
+    if (typeof note !== 'string') throw new TypeError('Invalid association note');
+    return this.transaction(() => {
+      this.requireWord(a); this.requireWord(b);
+      this.db.prepare(`INSERT INTO word_associations VALUES (?, ?, ?, ?)
+        ON CONFLICT(word_id_1, word_id_2) DO UPDATE SET note = excluded.note`).run(a, b, note, new Date().toISOString());
+      return { success: true, association: { wordId1: a, wordId2: b, note } };
+    });
+  }
+  removeAssociation(wordId1, wordId2) {
+    const [a, b] = associationPair(wordId1, wordId2);
+    this.db.prepare('DELETE FROM word_associations WHERE word_id_1 = ? AND word_id_2 = ?').run(a, b);
+    return { success: true };
+  }
+  getAssociationsForWord(wordId) {
+    validateConnectionId(wordId); this.requireWord(wordId);
+    return this.db.prepare(`SELECT w.id AS associatedWordId, w.display_word AS displayWord,
+      w.word, a.note, a.created_at AS createdAt FROM word_associations a
+      JOIN words w ON w.id = a.word_id_2 WHERE a.word_id_1 = ?
+      UNION ALL SELECT w.id, w.display_word, w.word, a.note, a.created_at
+      FROM word_associations a JOIN words w ON w.id = a.word_id_1 WHERE a.word_id_2 = ?
+      ORDER BY associatedWordId`).all(wordId, wordId).map(row => ({ ...row }));
+  }
+  getConnectionsNeighborhood(wordId, sampleLimit = 10) {
+    validateConnectionId(wordId);
+    if (!Number.isInteger(sampleLimit) || sampleLimit < 0 || sampleLimit > 100) throw new TypeError('Sample limit must be an integer between 0 and 100');
+    this.requireWord(wordId);
+    const center = this.selectOne(wordId);
+    const wordNode = word => {
+      const data = { word: word.word, bookSource: word.bookSource ?? '', review: word.review };
+      return { id: word.id, type: 'word', label: word.displayWord, ...data, data };
+    };
+    const nodes = [wordNode(center)]; const links = [];
+    const hub = (id, type, label, from, where, value) => {
+      const totalCount = this.db.prepare(`SELECT COUNT(*) AS n FROM ${from} WHERE ${where}`).get(value).n;
+      const sampleWords = this.db.prepare(`SELECT w.id, w.word, w.display_word AS displayWord FROM ${from}
+        WHERE ${where} ORDER BY w.id LIMIT ?`).all(value, sampleLimit).map(row => ({ ...row }));
+      nodes.push({ id, type, label, totalCount, sampleWords, data: { memberCount: totalCount, sampleWords } });
+      links.push({ source: wordId, target: id, type });
+    };
+    if (center.bookSource?.trim()) hub(`src:${encodeURIComponent(center.bookSource)}`, 'source', center.bookSource,
+      'words w', 'w.book_source = ?', center.bookSource);
+    for (const tag of center.tags) hub(`tag:${tag}`, 'tag', `#${tag}`,
+      'words w JOIN word_tags t ON t.word_id = w.id', 't.tag = ?', tag);
+    for (const shelf of this.db.prepare(`SELECT c.id, c.name FROM collections c JOIN word_collections wc
+      ON wc.collection_id = c.id WHERE wc.word_id = ? ORDER BY c.id`).all(wordId)) {
+      hub(`shelf:${shelf.id}`, 'shelf', shelf.name, 'words w JOIN word_collections wc ON wc.word_id = w.id', 'wc.collection_id = ?', shelf.id);
+    }
+    for (const association of this.getAssociationsForWord(wordId)) {
+      nodes.push(wordNode(this.selectOne(association.associatedWordId)));
+      links.push({ source: wordId, target: association.associatedWordId, type: 'association', note: association.note });
+    }
+    return { centerId: wordId, nodes, links };
+  }
   submitQuiz(wordId, success, linkToSrs) {
     if (typeof success !== 'boolean' || typeof linkToSrs !== 'boolean') throw new TypeError('Invalid quiz result');
     return this.transaction(() => {
@@ -194,6 +249,14 @@ class StorageService {
   exportData() { return this.loadWords(); }
   importData(words) { return this.saveWords(words); }
   close() { if (!this.closed) { this.db.close(); this.closed = true; } }
+}
+function validateConnectionId(id) {
+  if (typeof id !== 'string' || !id.trim() || id.includes('\0')) throw new TypeError('Invalid word ID');
+}
+function associationPair(a, b) {
+  validateConnectionId(a); validateConnectionId(b);
+  if (a === b) throw new TypeError('Cannot associate a word with itself');
+  return Buffer.compare(Buffer.from(a), Buffer.from(b)) < 0 ? [a, b] : [b, a];
 }
 function normalizeTag(tag) {
   if (typeof tag !== 'string') throw new TypeError('Invalid tag');

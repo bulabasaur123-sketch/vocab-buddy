@@ -1,6 +1,10 @@
 'use strict';
 class LibraryStore {
   constructor(storage) { this.storage = storage; }
+  addAssociation(...args) { return this.storage.addAssociation(...args); }
+  removeAssociation(...args) { return this.storage.removeAssociation(...args); }
+  getAssociationsForWord(id) { return this.storage.getAssociationsForWord(id); }
+  getConnectionsNeighborhood(...args) { return this.storage.getConnectionsNeighborhood(...args); }
   toggleFavorite(id) { return this.storage.toggleFavorite(id); }
   getFavorites() { return this.storage.getFavorites(); }
   createCollection(...args) { return this.storage.createCollection(...args); }

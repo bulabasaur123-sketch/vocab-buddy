@@ -189,3 +189,11 @@ Feature: Word Associations and Connections Neighborhood Extraction
 - Status set to `ready_for_backend`.
 - Stage 2 Owner: **Codex**.
 - Tasks for Codex: Implement SQLite migration v4, storage methods, IPC routes, preload bindings, and unit tests (`src/test/connections.test.js`) ensuring all 64+ tests pass.
+
+
+## Stage 2 Contract Clarifications
+- `sampleLimit` defaults to 10; only integers from 0 through 100 are accepted. Hub counts include the center; samples contain `{ id, word, displayWord }`, ordered by ID, and may include the center.
+- Graph nodes expose the listed top-level metadata and the example's `data` object. Hub `data.memberCount` equals `totalCount`.
+- Source hub IDs use `src:` plus the URI-encoded exact book source to avoid slug collisions. Blank sources produce no hub.
+- All direct personal associations are returned; only hub samples are limited. Missing center/list IDs throw `Word not found`. Removing an absent valid pair succeeds.
+- Pair ordering uses SQLite-compatible UTF-8 byte order; updating a note preserves `createdAt`.

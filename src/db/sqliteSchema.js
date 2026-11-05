@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const { DatabaseSync } = require('node:sqlite');
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS words (
   id TEXT PRIMARY KEY NOT NULL,
@@ -84,6 +84,15 @@ function initializeSchema(db) {
     );
     CREATE INDEX IF NOT EXISTS idx_word_tags_tag ON word_tags(tag);
     CREATE INDEX IF NOT EXISTS idx_word_tags_word ON word_tags(word_id);
+    CREATE TABLE IF NOT EXISTS word_associations (
+      word_id_1 TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+      word_id_2 TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+      note TEXT, created_at TEXT NOT NULL,
+      PRIMARY KEY (word_id_1, word_id_2), CHECK (word_id_1 < word_id_2)
+    );
+    CREATE INDEX IF NOT EXISTS idx_word_assoc_1 ON word_associations(word_id_1);
+    CREATE INDEX IF NOT EXISTS idx_word_assoc_2 ON word_associations(word_id_2);
+    CREATE INDEX IF NOT EXISTS idx_words_book_source ON words(book_source);
   `);
   return version;
 }
