@@ -7,8 +7,8 @@
   "scripts": {
     "start": "electron . --no-sandbox",
     "test": "node --test src/test/*.test.js",
-    "lint": "node --check main.js preload.js src/renderer.js src/services/*.js src/store/*.js src/db/*.js src/test/*.js",
-    "build": "node --check main.js preload.js src/renderer.js"
+    "lint": "node --check main.js preload.js src/renderer.js src/ui/*.js src/services/*.js src/store/*.js src/db/*.js src/test/*.js",
+    "build": "node --check main.js preload.js src/renderer.js src/ui/*.js"
   },
   "engines": {
     "node": ">=22"

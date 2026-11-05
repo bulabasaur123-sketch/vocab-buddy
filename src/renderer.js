@@ -37,6 +37,7 @@ const el = {
   navLexiconBtn: document.getElementById('nav-lexicon-btn'),
   navReviewBtn: document.getElementById('nav-review-btn'),
   navQuizBtn: document.getElementById('nav-quiz-btn'),
+  navConnectionsBtn: document.getElementById('nav-connections-btn'),
   navCountLexicon: document.getElementById('nav-count-lexicon'),
   navCountDue: document.getElementById('nav-count-due'),
   btnThemeToggle: document.getElementById('btn-theme-toggle'),
@@ -56,6 +57,7 @@ const el = {
   viewLexicon: document.getElementById('view-lexicon'),
   viewReview: document.getElementById('view-review'),
   viewQuiz: document.getElementById('view-quiz'),
+  viewConnections: document.getElementById('view-connections'),
 
   // Lexicon View
   searchInput: document.getElementById('search-input'),
@@ -391,6 +393,10 @@ async function refreshAll() {
   renderTagFilterChips();
   renderLexicon();
   renderShelves();
+  if (typeof populateConnectionsWordSelect === 'function') populateConnectionsWordSelect();
+  if (state.activeView === 'connections' && typeof renderConnectionsView === 'function') {
+    renderConnectionsView();
+  }
 }
 
 // ==========================================================================
@@ -586,6 +592,11 @@ function openDetailModal(word) {
 
   // Tags Section
   renderModalTags(word);
+
+  // Personal Associations Section
+  if (typeof renderModalAssociations === 'function') {
+    renderModalAssociations(word);
+  }
 
   // Synonyms
   if (word.synonyms && word.synonyms.length > 0) {
@@ -1419,6 +1430,7 @@ if (el.cadenceBtnDismiss) el.cadenceBtnDismiss.addEventListener('click', closeCa
 el.navLexiconBtn.addEventListener('click', () => switchView('lexicon'));
 el.navReviewBtn.addEventListener('click', () => switchView('review'));
 if (el.navQuizBtn) el.navQuizBtn.addEventListener('click', () => switchView('quiz'));
+if (el.navConnectionsBtn) el.navConnectionsBtn.addEventListener('click', () => switchView('connections'));
 el.btnReturnLexicon.addEventListener('click', () => switchView('lexicon'));
 
 function switchView(viewName) {
@@ -1426,12 +1438,15 @@ function switchView(viewName) {
   closeDetailModal();
   state.activeView = viewName;
   document.body.dataset.view = viewName;
-  for (const name of ['lexicon','review','quiz','shelves','settings']) {
+  for (const name of ['lexicon','review','quiz','connections','shelves','settings']) {
     const button = document.getElementById(`nav-${name}-btn`);
+    if (!button) continue;
     button.classList.toggle('active', name === viewName);
     if (name === viewName) button.setAttribute('aria-current','page'); else button.removeAttribute('aria-current');
     const panel = document.getElementById(`view-${name}`);
-    panel.classList.toggle('active',name === viewName); panel.classList.toggle('hidden',name !== viewName);
+    if (panel) {
+      panel.classList.toggle('active',name === viewName); panel.classList.toggle('hidden',name !== viewName);
+    }
   }
   document.querySelector('.sidebar').classList.remove('menu-open'); document.getElementById('nav-menu').setAttribute('aria-expanded','false');
   if (viewName === 'lexicon') renderLexicon();
@@ -1442,6 +1457,9 @@ function switchView(viewName) {
   if (viewName === 'quiz') {
     if (state.quiz.deck.length && state.quiz.index < state.quiz.deck.length) { el.quizArena.classList.remove('hidden'); document.getElementById('quiz-setup').classList.add('hidden'); }
     else initQuizView();
+  }
+  if (viewName === 'connections' && typeof renderConnectionsView === 'function') {
+    renderConnectionsView();
   }
   if (viewName === 'shelves') renderShelves();
 }
@@ -1480,6 +1498,7 @@ function escapeHtml(str) {
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupDesktop();
+  if (typeof initConnectionsView === 'function') initConnectionsView();
   announce('Loading your lexicon…');
   refreshAll().then(() => announce('')).catch(() => announce('Could not load your library. Reopen the application to retry.', true));
 });

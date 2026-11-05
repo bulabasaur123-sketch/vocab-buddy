@@ -107,10 +107,10 @@ class ElectronVerification(unittest.TestCase):
 
     def test_bridge_and_storage_roundtrip(self):
         self.assertTrue(self.page.evaluate("typeof require === 'undefined' && typeof process === 'undefined'"))
-        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 23)
+        self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 27)
         from contextlib import closing
         with closing(sqlite3.connect(Path(self.data.name) / "vocab_buddy.db")) as database:
-            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 4)
             rows = database.execute("SELECT word, meanings_json FROM words").fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], word()["word"])
@@ -532,6 +532,83 @@ class ElectronVerification(unittest.TestCase):
           finally {window.Audio=original;}
         }""")
         self.assertEqual(result,dict(message='Recording unavailable. Try again.',busy=False))
+        self.assertFalse(self.errors)
+
+    def test_feat005_connections_view_navigation_and_rendering(self):
+        w1 = word("ephemeral")
+        w2 = word("dalliance")
+        self.reset([w1, w2])
+
+        # Navigate to Connections view
+        self.page.locator("#nav-connections-btn").dispatch_event("click")
+        expect(self.page.locator("#view-connections")).to_be_visible()
+        expect(self.page.locator("#nav-connections-btn")).to_have_class("nav-link active")
+
+        # Word select has options
+        select = self.page.locator("#connection-word-select")
+        expect(select).to_be_visible()
+
+        # Select Ephemeral
+        select.select_option("ephemeral_fixture")
+        expect(self.page.locator("#connections-canvas-container")).to_be_visible()
+        expect(self.page.locator("#connections-prompt")).to_be_hidden()
+
+        # Switch to companion List View
+        self.page.locator("#map-mode-list").dispatch_event("click")
+        expect(self.page.locator("#connections-companion-list")).to_be_visible()
+        expect(self.page.locator("#connections-canvas-container")).to_be_hidden()
+        expect(self.page.locator("#companion-center-card")).to_contain_text("Ephemeral")
+        expect(self.page.locator("#companion-sources-list")).to_contain_text("Dune")
+
+        # Switch back to Map View (Graph)
+        self.page.locator("#map-mode-graph").dispatch_event("click")
+        expect(self.page.locator("#connections-canvas-container")).to_be_visible()
+        expect(self.page.locator("#connections-companion-list")).to_be_hidden()
+
+        # Test zoom and fit controls
+        self.page.locator("#map-btn-zoom-in").dispatch_event("click")
+        self.page.locator("#map-btn-zoom-out").dispatch_event("click")
+        self.page.locator("#map-btn-fit").dispatch_event("click")
+        self.assertFalse(self.errors)
+
+    def test_feat005_personal_associations_add_and_remove(self):
+        w1 = word("ephemeral")
+        w2 = word("dalliance")
+        self.reset([w1, w2])
+
+        # Open Detail Modal for Ephemeral
+        self.page.locator(".lexicon-card").filter(has_text="Ephemeral").dispatch_event("click")
+        expect(self.page.locator("#modal-word")).to_have_text("Ephemeral")
+        expect(self.page.locator("#modal-associations-section")).to_be_visible()
+
+        # Add association with Dalliance
+        self.page.locator("#modal-assoc-word-select").select_option("dalliance_fixture")
+        self.page.locator("#modal-assoc-note-input").fill("Shared poetic tone")
+        self.page.locator("#modal-association-form").evaluate("form => form.requestSubmit()")
+
+        # Verify chip appears in modal
+        expect(self.page.locator("#modal-associations-list")).to_contain_text("Dalliance")
+        expect(self.page.locator("#modal-associations-list")).to_contain_text("(Shared poetic tone)")
+
+        # Verify mutual persistence via IPC API
+        assocs1 = self.page.evaluate("window.vocabAPI.getAssociations('ephemeral_fixture')")
+        self.assertEqual(len(assocs1), 1)
+        self.assertEqual(assocs1[0]["displayWord"], "Dalliance")
+        self.assertEqual(assocs1[0]["note"], "Shared poetic tone")
+
+        assocs2 = self.page.evaluate("window.vocabAPI.getAssociations('dalliance_fixture')")
+        self.assertEqual(len(assocs2), 1)
+        self.assertEqual(assocs2[0]["displayWord"], "Ephemeral")
+        self.assertEqual(assocs2[0]["note"], "Shared poetic tone")
+
+        # Remove association via chip button
+        self.page.locator("#modal-associations-list .chip-remove-btn").first.dispatch_event("click")
+        expect(self.page.locator("#modal-associations-list")).to_contain_text("No personal associations")
+
+        assocs_empty = self.page.evaluate("window.vocabAPI.getAssociations('ephemeral_fixture')")
+        self.assertEqual(len(assocs_empty), 0)
+
+        self.page.locator("#modal-close").dispatch_event("click")
         self.assertFalse(self.errors)
 
 

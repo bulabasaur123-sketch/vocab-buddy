@@ -183,12 +183,19 @@ input[type=checkbox] { accent-color: var(--text-accent); width: 1rem; height: 1r
   .page-heading { align-items: flex-start; }h1 { font-size: 2rem; }
   .lexicon-controls { align-items: stretch; }.filter-wrap { flex-wrap: wrap; }
   .lexicon-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .companion-sections-grid { grid-template-columns: 1fr; }
+  .connections-canvas-container { height: 460px; }
 }
 @media (max-width: 600px) {
   .page-heading { flex-wrap: wrap; }.page-heading > .btn-record { width: 100%; }
   .lexicon-controls { flex-direction: column; }.filter-wrap { justify-content: flex-start; }
   .lexicon-grid { grid-template-columns: 1fr; }
   .sort-label { margin-left: 0; }.browse-toolbar { gap: var(--space-3); }
+  .connections-toolbar { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  .connection-select-cluster { width: 100%; min-width: 0; }
+  .map-controls { margin-left: 0; width: 100%; justify-content: space-between; }
+  .association-input-form { flex-direction: column; align-items: stretch; }
+  .association-input-form > * { width: 100%; }
   .list-view .lexicon-card { flex-direction: column; align-items: stretch; }
   .list-view .word-actions { display: flex; grid-template-columns: none; width: 100%; margin-left: 0; margin-top: var(--space-2); padding-top: var(--space-2); border-top: 1px solid var(--border-rule); justify-content: flex-start; gap: var(--space-2); }
   .list-view .word-cadence { margin-left: auto; width: auto; }
@@ -216,3 +223,52 @@ body[data-view="review"] .colophon, body[data-view="quiz"] .colophon { display: 
 [data-audio-state="playing"] { color: var(--text-accent); }
 .word-actions { flex-wrap: wrap; }
 .word-actions .audio-feedback { grid-column: 1 / -1; justify-self: start; max-width: 15rem; }
+
+/* Connections & Word Map View (FEAT-005) */
+.connections-toolbar { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-6); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-rule); }
+.connection-select-cluster { flex: 1; min-width: 14rem; }
+.connection-select { width: 100%; }
+.map-view-switch { display: flex; gap: var(--space-1); }
+.map-controls { display: flex; gap: var(--space-2); margin-left: auto; }
+.connections-arena { position: relative; width: 100%; min-height: 520px; border: 1px solid var(--border-rule); border-radius: 6px; background: var(--bg-surface); overflow: hidden; display: flex; flex-direction: column; }
+.connections-prompt { margin: var(--space-8); }
+.connections-canvas-container { position: relative; width: 100%; height: 560px; min-height: 420px; flex: 1; display: flex; overflow: hidden; background: var(--bg-surface); }
+.connections-canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.connections-canvas:active { cursor: grabbing; }
+
+.map-tooltip { position: absolute; pointer-events: none; z-index: 15; transform: translate(-50%, -100%); background: var(--bg-surface); border: 1px solid var(--border-control); border-radius: 4px; padding: var(--space-2) var(--space-3); box-shadow: 0 4px 14px rgba(0,0,0,0.14); font-size: .8rem; max-width: 22rem; pointer-events: none; white-space: normal; }
+.map-tooltip .tooltip-title { font-weight: 600; font-family: var(--font-serif); color: var(--text-primary); margin-bottom: 2px; }
+.map-tooltip .tooltip-sub { font-size: .75rem; color: var(--text-secondary); line-height: 1.35; }
+.map-tooltip em { font-size: .7rem; color: var(--text-muted); display: block; margin-top: 2px; }
+
+.connections-companion-list { padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-6); overflow-y: auto; max-height: 700px; }
+.companion-center-card { padding: var(--space-6); background: var(--bg-surface-subtle); border: 1px solid var(--border-rule); border-radius: 4px; display: flex; flex-direction: column; gap: var(--space-3); }
+.companion-center-header { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.companion-center-word { font: 600 2rem/1.1 var(--font-serif); color: var(--text-primary); margin: 0; }
+.companion-center-def { font-size: var(--reading-size); color: var(--text-primary); line-height: 1.5; margin: 0; }
+.companion-center-source { font-size: .8rem; color: var(--text-muted); font-style: italic; margin: 0; }
+.companion-btn-open { align-self: flex-start; }
+
+.companion-sections-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+.companion-section { display: flex; flex-direction: column; gap: var(--space-3); }
+.companion-section-title { font: 600 1rem var(--font-serif); color: var(--text-primary); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border-rule); margin: 0; }
+.companion-items { display: flex; flex-direction: column; gap: var(--space-3); }
+.companion-card { padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border-rule); border-radius: 4px; display: flex; flex-direction: column; gap: var(--space-1); }
+.companion-item-title { font: 500 .95rem var(--font-serif); color: var(--text-primary); margin: 0; }
+.companion-item-meta { font-size: .75rem; color: var(--text-muted); margin: 0; }
+.companion-item-samples { font-size: .8rem; color: var(--text-secondary); font-style: italic; margin-top: var(--space-1); }
+
+.assoc-card-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.assoc-word-btn { font: 600 1.05rem var(--font-serif); color: var(--text-accent); background: none; border: none; padding: 0; min-height: 0; cursor: pointer; text-align: left; }
+.assoc-word-btn:hover { text-decoration: underline; }
+.assoc-card-note { font-size: .8rem; color: var(--text-secondary); font-style: italic; margin: 0; }
+
+.assoc-chip { display: inline-flex; align-items: center; gap: var(--space-2); border: 1px solid var(--border-control); border-radius: 4px; padding: .25rem .5rem; font-size: .8rem; background: var(--bg-surface); }
+.assoc-word-name { font-weight: 600; color: var(--text-primary); }
+.assoc-note { color: var(--text-secondary); font-style: italic; font-weight: normal; font-size: .75rem; }
+
+.association-input-form { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); align-items: center; }
+.association-input-form .select-assoc-word { flex: 1; min-width: 9rem; }
+.association-input-form .assoc-note-field { flex: 1.5; min-width: 10rem; }
+.association-input-form .btn-add-assoc { white-space: nowrap; }
+

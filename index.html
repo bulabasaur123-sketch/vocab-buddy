@@ -25,6 +25,7 @@
         <button id="nav-lexicon-btn" class="nav-link active" aria-current="page">Lexicon <span id="nav-count-lexicon" class="counter-badge">0</span></button>
         <button id="nav-review-btn" class="nav-link">Review Deck <span id="nav-count-due" class="counter-badge">0</span></button>
         <button id="nav-quiz-btn" class="nav-link">Active Quiz</button>
+        <button id="nav-connections-btn" class="nav-link">Connections</button>
         <button id="nav-shelves-btn" class="nav-link">Shelves</button>
         <button id="nav-settings-btn" class="nav-link nav-settings">Settings</button>
       </nav>
@@ -321,6 +322,69 @@
         </div>
       </section>
 
+      <!-- Connections / Word Map View -->
+      <section id="view-connections" class="view-panel hidden" aria-labelledby="connections-title">
+        <header class="page-heading">
+          <div>
+            <p class="eyebrow">Your reading, connected</p>
+            <h1 id="connections-title">Connections</h1>
+            <p class="page-description">Explore a word’s reading hubs and personal associations.</p>
+          </div>
+        </header>
+
+        <div class="connections-toolbar browse-toolbar">
+          <div class="connection-select-cluster">
+            <label for="connection-word-select" class="sr-only">Choose a word to explore</label>
+            <select id="connection-word-select" class="filter-select connection-select">
+              <option value="">Select a word to explore...</option>
+            </select>
+          </div>
+          <div class="view-switch map-view-switch">
+            <button type="button" id="map-mode-graph" class="btn-subtle active" aria-pressed="true">Map View</button>
+            <button type="button" id="map-mode-list" class="btn-subtle" aria-pressed="false">List View</button>
+          </div>
+          <div class="map-controls">
+            <button type="button" id="map-btn-fit" class="btn-subtle" title="Recenter and fit view">Fit View</button>
+            <button type="button" id="map-btn-zoom-in" class="btn-subtle" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" id="map-btn-zoom-out" class="btn-subtle" title="Zoom out" aria-label="Zoom out">−</button>
+          </div>
+        </div>
+
+        <div id="connections-arena" class="connections-arena">
+          <div id="connections-prompt" class="connections-prompt empty-notice hidden">
+            <p id="connections-prompt-heading" class="empty-heading">Select a word to explore its connections</p>
+            <p id="connections-prompt-sub" class="empty-sub">Choose any entry from your lexicon to see its books, tags, shelves, and personal associations.</p>
+          </div>
+
+          <div id="connections-canvas-container" class="connections-canvas-container">
+            <canvas id="connections-canvas" class="connections-canvas" width="800" height="500"></canvas>
+            <div id="map-tooltip" class="map-tooltip hidden" role="tooltip"></div>
+          </div>
+
+          <div id="connections-companion-list" class="connections-companion-list hidden">
+            <div class="companion-center-card" id="companion-center-card"></div>
+            <div class="companion-sections-grid">
+              <div class="companion-section" id="companion-sources-section">
+                <h3 class="companion-section-title">Reading Provenance</h3>
+                <div id="companion-sources-list" class="companion-items"></div>
+              </div>
+              <div class="companion-section" id="companion-tags-section">
+                <h3 class="companion-section-title">Thematic Tags</h3>
+                <div id="companion-tags-list" class="companion-items"></div>
+              </div>
+              <div class="companion-section" id="companion-shelves-section">
+                <h3 class="companion-section-title">Shelves</h3>
+                <div id="companion-shelves-list" class="companion-items"></div>
+              </div>
+              <div class="companion-section" id="companion-associations-section">
+                <h3 class="companion-section-title">Personal Associations</h3>
+                <div id="companion-associations-list" class="companion-items"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="view-shelves" class="view-panel hidden" aria-labelledby="shelves-title">
         <header class="page-heading"><div><p class="eyebrow">Give your words a home</p><h1 id="shelves-title">Shelves</h1><p class="page-description">Organize by book, subject, or the way you use a word.</p></div><button id="btn-create-shelf" class="btn-record">New shelf</button></header>
         <label for="shelf-search" class="sr-only">Search shelves</label><input id="shelf-search" class="search-input" type="search" placeholder="Find a shelf…">
@@ -436,6 +500,20 @@
           <div class="folio-section" id="modal-synonyms-section">
             <h4 class="folio-subheading">Related Terms</h4>
             <div id="modal-synonyms" class="chip-row"></div>
+          </div>
+
+          <div class="folio-section" id="modal-associations-section">
+            <h4 class="folio-subheading">Personal Associations</h4>
+            <div id="modal-associations-list" class="chip-row"></div>
+            <form id="modal-association-form" class="association-input-form">
+              <label for="modal-assoc-word-select" class="sr-only">Choose a word to associate</label>
+              <select id="modal-assoc-word-select" class="filter-select select-assoc-word">
+                <option value="">+ Associate with word...</option>
+              </select>
+              <label for="modal-assoc-note-input" class="sr-only">Optional association context or note</label>
+              <input type="text" id="modal-assoc-note-input" class="entry-input assoc-note-field" placeholder="Context or association note..." autocomplete="off">
+              <button type="submit" id="modal-btn-add-assoc" class="btn-subtle btn-add-assoc">+ Connect</button>
+            </form>
           </div>
         </div>
 
@@ -581,6 +659,7 @@
 
   </div>
 
+  <script src="src/ui/connectionsView.js"></script>
   <script src="src/ui/desktop.js"></script>
   <script src="src/renderer.js"></script>
 </body>

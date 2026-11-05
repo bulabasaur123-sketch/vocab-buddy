@@ -2,8 +2,8 @@
 title: "Vocab Buddy: Connections & Reader-Authored Associations (FEAT-005)"
 type: prd_and_spec
 feature_code: FEAT-005
-status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-05
 updated_at: 2026-11-05
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-05
 # Feature Specification: FEAT-005 Connections & Reader-Authored Associations
 
 > **Feature Code:** FEAT-005  
-> **Active Stage:** Stage 2 Complete — Ready for Frontend Integration (Stage 3)  
+> **Active Stage:** Stage 3 Complete — Ready for Review & Verification (Stage 4)  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -201,4 +201,27 @@ Feature: Word Associations and Connections Neighborhood Extraction
 ### Stage 2 Verification & Stage 3 Handoff
 - Implementation committed as `553f88d`.
 - `npm test` and `npm run lint` pass; all backend JavaScript files also pass individual syntax checks.
-- Gemini: integrate Connections UI using the preload methods in section 4 and the clarified graph contract above. Stage 3 UI remains pending.
+- Gemini: integrate Connections UI using the preload methods in section 4 and the clarified graph contract above.
+
+### Stage 3 Implementation & Stage 4 Handoff
+- Integrated Connections view (`#view-connections`):
+  - Primary navigation button `#nav-connections-btn` added with active/page indicators.
+  - Interactive HTML5 Canvas force-directed graph (`connectionsView.js`):
+    - Center word with radial halo ring.
+    - Reading Provenance source hub pill (`📖`).
+    - Thematic tag hub pills (`#`).
+    - Curated shelf hub pills (`☵`).
+    - Reader-authored mutual associations with optional contextual note indicators.
+    - Physics simulation with Euler integration, Hooke springs, Coulomb repulsion, velocity damping, and settling energy cutoff (`energy < 0.005` or step ceiling) to freeze completely without background CPU loop.
+    - Responsive Pan, Zoom (wheel + toolbar buttons + Fit View), node dragging, hover tooltips, and click-to-recenter/detail.
+    - Theme-aware palette for archival paper and dark ink themes.
+    - High-DPI support (`devicePixelRatio`).
+  - Accessible companion List View (`#connections-companion-list`):
+    - Full semantic card breakdown of center word, book provenance, tags, shelves, and personal associations.
+    - Interactive navigation and association deletion controls.
+  - Word Detail Modal Personal Associations (`#modal-associations-section`):
+    - Mutual association chips with contextual notes and remove buttons.
+    - Form to connect words from the personal lexicon with optional context notes.
+- Zero CLS and responsive adaptations across desktop, tablet ($\le 850\text{px}$), and mobile ($\le 600\text{px}$).
+- All 69 unit tests (`npm test`), linter checks (`npm run lint`), build checks (`npm run build`), and 28 real Electron E2E verification tests (`e2e/verify.py`) pass with 0 errors.
+- Handed off to Codex for Stage 4 security audit and release gate verification.

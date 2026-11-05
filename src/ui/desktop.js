@@ -121,7 +121,10 @@ function setupDesktop() {
   document.getElementById('btn-add-word').addEventListener('click', openCapture);
   document.getElementById('add-word-close').addEventListener('click',closeCapture);
   document.getElementById('btn-create-shelf').addEventListener('click',openCollectionModal);
-  for (const view of ['shelves','settings']) document.getElementById(`nav-${view}-btn`).addEventListener('click', () => switchView(view));
+  for (const view of ['connections','shelves','settings']) {
+    const btn = document.getElementById(`nav-${view}-btn`);
+    if (btn) btn.addEventListener('click', () => switchView(view));
+  }
   document.getElementById('brand-home').addEventListener('click', e => { e.preventDefault(); switchView('lexicon'); });
   document.getElementById('nav-menu').addEventListener('click', e => { const open = e.currentTarget.getAttribute('aria-expanded') !== 'true'; e.currentTarget.setAttribute('aria-expanded',String(open)); document.querySelector('.sidebar').classList.toggle('menu-open',open); });
   document.getElementById('sort-words').addEventListener('change', e => { state.sort = e.target.value; desktopPrefs.set('sort',state.sort); state.page=1; renderLexicon(); });
