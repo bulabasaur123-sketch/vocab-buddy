@@ -88,6 +88,13 @@ function initConnectionsView() {
 function setConnectionsViewMode(mode) {
   connectionsState.viewMode = mode;
   const isGraph = mode === 'graph';
+  if (!isGraph && document.body.classList.contains('map-fullscreen')) {
+    document.body.classList.remove('map-fullscreen');
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }
+  const controls = document.querySelector('.map-controls');
+  if (controls) controls.classList.toggle('hidden', !isGraph);
+  if (typeof updateFullScreenUI === 'function') updateFullScreenUI();
 
   const modeGraphBtn = document.getElementById('map-mode-graph');
   const modeListBtn = document.getElementById('map-mode-list');
@@ -475,8 +482,6 @@ function resizeConnectionsCanvas() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
 
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

@@ -106,7 +106,7 @@ function toggleFullScreen() {
   const isDocFs = Boolean(document.fullscreenElement);
   const isMapFs = document.body.classList.contains('map-fullscreen');
 
-  if (state.activeView === 'connections') {
+  if (state.activeView === 'connections' && connectionsState.viewMode === 'graph') {
     if (isDocFs || isMapFs) {
       if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
@@ -137,13 +137,13 @@ function updateFullScreenUI() {
   const isFs = Boolean(document.fullscreenElement);
   document.body.classList.toggle('is-fullscreen', isFs);
 
-  if (!isFs && document.body.classList.contains('map-fullscreen')) {
+  if ((!isFs || connectionsState.viewMode !== 'graph') && document.body.classList.contains('map-fullscreen')) {
     document.body.classList.remove('map-fullscreen');
-  } else if (isFs && state.activeView === 'connections') {
+  } else if (isFs && state.activeView === 'connections' && connectionsState.viewMode === 'graph') {
     document.body.classList.add('map-fullscreen');
   }
 
-  const isMapActive = document.body.classList.contains('map-fullscreen') || (isFs && state.activeView === 'connections');
+  const isMapActive = document.body.classList.contains('map-fullscreen') || (isFs && state.activeView === 'connections' && connectionsState.viewMode === 'graph');
 
   const label = document.getElementById('fullscreen-btn-label');
   if (label) label.textContent = isFs ? 'Exit full screen' : 'Enter full screen';

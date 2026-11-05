@@ -631,6 +631,30 @@ class ElectronVerification(unittest.TestCase):
         self.page.locator("#modal-close").dispatch_event("click")
         self.assertFalse(self.errors)
 
+    def test_map_fullscreen_restores_dimensions_and_leaves_list_independent(self):
+        self.page.locator("#nav-connections-btn").dispatch_event("click")
+        container = self.page.locator("#connections-canvas-container")
+        original = container.bounding_box()
+        for _ in range(2):
+            self.page.locator("#map-btn-fullscreen").click()
+            wait_for(self.page, "document.fullscreenElement !== null")
+            self.page.locator("#map-btn-fullscreen").click()
+            wait_for(self.page, "document.fullscreenElement === null")
+            self.page.wait_for_timeout(150)
+            restored = container.bounding_box()
+            self.assertAlmostEqual(restored["height"], original["height"], delta=1)
+            self.assertAlmostEqual(restored["width"], original["width"], delta=1)
+        self.page.locator("#map-mode-list").dispatch_event("click")
+        list_height = self.page.locator("#connections-companion-list").bounding_box()["height"]
+        self.page.locator("#map-mode-graph").dispatch_event("click")
+        self.page.locator("#map-btn-fullscreen").click()
+        wait_for(self.page, "document.fullscreenElement !== null")
+        self.page.locator("#map-mode-list").dispatch_event("click")
+        wait_for(self.page, "document.fullscreenElement === null && !document.body.classList.contains('map-fullscreen')")
+        expect(self.page.locator("#connections-companion-list")).to_be_visible()
+        expect(container).to_be_hidden()
+        self.assertAlmostEqual(self.page.locator("#connections-companion-list").bounding_box()["height"], list_height, delta=1)
+
     def test_fullscreen_controls_and_shortcuts(self):
         w1 = word("ephemeral")
         w2 = word("dalliance")

@@ -1438,7 +1438,7 @@ function switchView(viewName) {
   }
   state.activeView = viewName;
   document.body.dataset.view = viewName;
-  if (viewName === 'connections' && document.fullscreenElement) {
+  if (viewName === 'connections' && document.fullscreenElement && connectionsState.viewMode === 'graph') {
     document.body.classList.add('map-fullscreen');
     if (typeof updateFullScreenUI === 'function') updateFullScreenUI();
   }
