@@ -566,9 +566,14 @@ class ElectronVerification(unittest.TestCase):
         expect(self.page.locator("#connections-companion-list")).to_be_hidden()
 
         # Test zoom and fit controls
+        initial_zoom = self.page.evaluate("connectionsState.zoom")
         self.page.locator("#map-btn-zoom-in").dispatch_event("click")
+        self.assertGreater(self.page.evaluate("connectionsState.zoom"), initial_zoom)
         self.page.locator("#map-btn-zoom-out").dispatch_event("click")
+        self.assertAlmostEqual(self.page.evaluate("connectionsState.zoom"), initial_zoom)
+        self.page.evaluate("connectionsState.panX = 250; connectionsState.panY = 100")
         self.page.locator("#map-btn-fit").dispatch_event("click")
+        self.assertEqual(self.page.evaluate("[connectionsState.panX, connectionsState.panY]"), [0, 0])
         self.assertFalse(self.errors)
 
     def test_feat005_personal_associations_add_and_remove(self):
@@ -623,6 +628,26 @@ class ElectronVerification(unittest.TestCase):
         map_fs_btn = self.page.locator("#map-btn-fullscreen")
         expect(map_fs_btn).to_be_visible()
         expect(map_fs_btn).to_contain_text("Full Screen")
+        # Exercise real user activation and verify the browser state, not just labels.
+        map_fs_btn.click()
+        try:
+            wait_for(self.page, "document.fullscreenElement === document.documentElement")
+            expect(map_fs_btn).to_have_attribute("aria-pressed", "true")
+            expect(map_fs_btn).to_contain_text("Exit Full")
+            map_fs_btn.click()
+            wait_for(self.page, "document.fullscreenElement === null")
+            self.page.locator("#nav-settings-btn").click()
+            fs_btn.click()
+            wait_for(self.page, "document.fullscreenElement !== null")
+            expect(fs_btn).to_have_attribute("aria-pressed", "true")
+            self.page.keyboard.press("F11")
+            wait_for(self.page, "document.fullscreenElement === null")
+            self.page.keyboard.press("F11")
+            wait_for(self.page, "document.fullscreenElement !== null")
+            fs_btn.click()
+            wait_for(self.page, "document.fullscreenElement === null")
+        finally:
+            self.page.evaluate("async () => { if (document.fullscreenElement) await document.exitFullscreen(); }")
         self.assertFalse(self.errors)
 
 

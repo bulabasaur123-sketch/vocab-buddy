@@ -22,8 +22,17 @@ function createWindow() {
   loading.catch(error => console.error('Unable to load Vocab Buddy:', error.message));
 }
 app.whenReady().then(() => {
-  session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  // Fullscreen is available only to this window's local, top-level app page.
+  // Keep all other permissions denied.
+  const allowFullscreen = (contents, permission, details) =>
+    permission === 'fullscreen' && Boolean(window && contents === window.webContents) &&
+    contents.getURL() === entryUrl && details?.isMainFrame === true &&
+    details.requestingUrl === entryUrl;
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+    callback(allowFullscreen(contents, permission, details));
+  });
+  session.defaultSession.setPermissionCheckHandler((contents, permission, _origin, details) =>
+    allowFullscreen(contents, permission, details));
   const store = new LibraryStore(new StorageService(app.getPath('userData')));
   const { dictionary, audio } = createBackendServices(app.getPath('userData'));
   registerHandlers(ipcMain, store, dictionary, frame => Boolean(window && frame === window.webContents.mainFrame && [entryUrl, placeholder].includes(frame.url)), audio);
