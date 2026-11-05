@@ -2,19 +2,20 @@
 title: "Vocab Buddy: Connections & Reader-Authored Associations (FEAT-005)"
 type: prd_and_spec
 feature_code: FEAT-005
-status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: ready_to_ship # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: human # gemini | codex | human
 created_at: 2026-11-05
-updated_at: 2026-11-05
+updated_at: 2026-11-06
 ---
 
 # Feature Specification: FEAT-005 Connections & Reader-Authored Associations
 
 > **Feature Code:** FEAT-005  
-> **Active Stage:** Stage 3 Complete — Ready for Review & Verification (Stage 4)  
+> **Active Stage:** Stage 4 Complete — Ready to Ship  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
+> **ADR:** [[docs/adr/ADR-005_connections_neighborhood_graph_and_immersive_fullscreen.md|ADR-005]]  
 
 ---
 
@@ -225,3 +226,27 @@ Feature: Word Associations and Connections Neighborhood Extraction
 - Zero CLS and responsive adaptations across desktop, tablet ($\le 850\text{px}$), and mobile ($\le 600\text{px}$).
 - All 69 unit tests (`npm test`), linter checks (`npm run lint`), build checks (`npm run build`), and 28 real Electron E2E verification tests (`e2e/verify.py`) pass with 0 errors.
 - Handed off to Codex for Stage 4 security audit and release gate verification.
+
+
+## 7. Stage 4 Review, Fullscreen Enhancements & Release Gate Sign-off (Codex & Gemini)
+
+**Result: PASS on 2026-11-06.** Status is `ready_to_ship`.
+
+### Implemented Enhancements:
+1. **Immersive Full-Screen Map Mode (`body.map-fullscreen`):**
+   - The interactive canvas expands to fill $100\text{vw} \times 100\text{vh}$, hiding distracting peripheral navigation (sidebar, page header, colophon footer).
+   - Controls float in an elegant, glass-morphism pill pinned at the top with frosted backdrop blur and surface shadow.
+   - Word detail modals float at `z-index: 1100`, allowing readers to view and edit word details without leaving full-screen mode.
+   - List View isolation: Switching to List View while in fullscreen cleanly exits immersive fullscreen so standard reading layouts remain pristine.
+   - Fullscreen toggled via `#map-btn-fullscreen`, <kbd>F11</kbd>, and <kbd>Esc</kbd>.
+2. **Dimension Restoration Guard:**
+   - Regression tests ensure exiting fullscreen restores original container dimensions ($560\text{px}$) with 0 layout shift.
+3. **Showcase Dataset & Clean Slate:**
+   - Idempotent seeding script (`src/db/showcase.js`, `scripts/seedShowcase.js`) populates 10 curated words, 5 shelves, 29 tags, and 8 mutual associations showcasing all features.
+
+### Automated Test Verification:
+- **Unit Tests:** All **70 / 70** unit tests pass across 9 test suites (`npm test`).
+- **E2E Suite:** All **30 / 30** real Electron Playwright tests pass in `e2e/verify.py` (including `test_fullscreen_controls_and_shortcuts` and `test_map_fullscreen_restores_dimensions_and_leaves_list_independent`).
+- **Code Hygiene:** `npm run lint` and `npm run build` pass cleanly with 0 errors.
+- **Architecture Decision Record:** Authored [[docs/adr/ADR-005_connections_neighborhood_graph_and_immersive_fullscreen.md|ADR-005]].
+
