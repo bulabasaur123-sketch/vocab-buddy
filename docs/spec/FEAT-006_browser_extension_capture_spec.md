@@ -2,8 +2,8 @@
 title: "Wordloom: Browser Extension Capture Companion (FEAT-006)"
 type: prd_and_spec
 feature_code: FEAT-006
-status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-06
 updated_at: 2026-11-06
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-06
 # Feature Specification: FEAT-006 Browser Extension Capture Companion
 
 > **Feature Code:** FEAT-006  
-> **Active Stage:** Stage 1 Complete — Ready for Backend Implementation  
+> **Active Stage:** Stage 2 Complete — Ready for Frontend Integration  
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -319,8 +319,8 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | Stage | Responsible Agent | Status | Next Milestone |
 | :--- | :--- | :--- | :--- |
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
-| **Stage 2: Backend & Bridge Engine** | **Codex** | ⏳ Pending Start | Implement Native Messaging host script, outbox queue logic, and unit tests. |
-| **Stage 3: Frontend & Extension UI** | **Gemini** | ⏸️ Queued | Construct MV3 popup UI, typography, design tokens, and keyboard accessibility. |
+| **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
+| **Stage 3: Frontend & Extension UI** | **Gemini** | ▶ Ready for Gemini | Construct MV3 popup UI, typography, design tokens, and keyboard accessibility. |
 | **Stage 4: Review, Security & Verification** | **Codex** | ⏸️ Queued | Audit CSP, test outbox edge cases, run E2E Playwright verification. |
 
 ---
