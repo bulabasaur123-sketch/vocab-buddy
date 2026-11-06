@@ -30,6 +30,23 @@ adapting test navigation to intentionally changed UI flows and adding regression
 
 Deferred cross-platform work: ../roadmap/cross-platform-next.md.
 
+## Shelves pagination — 2026-11-06
+
+User explicitly authorized Codex to implement this frontend change and record a
+Gemini handoff. Filter shelves before paginating, preserve collection order, and
+show at most five shelves per page. Previous/Next controls show Page X of Y,
+disable at boundaries, and hide for zero to five matches. Search changes reset
+to page one; collection updates clamp the page to the last available page.
+With twelve matching shelves, page sizes must be 5, 5, and 2 without omissions.
+
+Gemini handoff: implemented in `src/ui/desktop.js` with accessible navigation in
+`index.html`, reusing the existing `.pagination` and `.btn-subtle` styles. No new
+CSS or persistence changes. Regression coverage in
+`src/test/shelvesPagination.test.js` checks page sizes/order, boundary states,
+deletion clamping, filtered pagination, search resets, and empty results.
+Verification: `npm test`, `npm run build`, and `npm run lint` pass. Browser visual
+verification remains for Gemini; the regression uses a lightweight DOM fixture.
+
 ## Completion
 
 Desktop steps 1–4 are implemented. Verification: 57 unit cases, 23 isolated

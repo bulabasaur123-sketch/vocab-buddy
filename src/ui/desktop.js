@@ -85,12 +85,26 @@ function renderDesktopLibrary() {
   el.lexiconGrid.appendChild(fragment);
   for (const name of ['list','grid']) document.getElementById(`view-${name}-btn`).setAttribute('aria-pressed', String(state.layout === name));
 }
+const SHELVES_PER_PAGE = 5;
+let shelfPage = 1;
+let shelfSearchQuery = '';
+
 function renderShelves() {
   const list = document.getElementById('shelves-list'); list.replaceChildren();
   const query = document.getElementById('shelf-search').value.trim().toLowerCase();
+  if (query !== shelfSearchQuery) {
+    shelfPage = 1;
+    shelfSearchQuery = query;
+  }
   const shelves = state.collections.filter(c => `${c.name} ${c.description || ''}`.toLowerCase().includes(query));
+  const pages = Math.max(1, Math.ceil(shelves.length / SHELVES_PER_PAGE));
+  shelfPage = Math.min(pages, Math.max(1, shelfPage));
+  document.getElementById('shelf-pagination').classList.toggle('hidden', shelves.length <= SHELVES_PER_PAGE);
+  document.getElementById('shelf-page-label').textContent = `Page ${shelfPage} of ${pages}`;
+  document.getElementById('shelf-page-prev').disabled = shelfPage === 1;
+  document.getElementById('shelf-page-next').disabled = shelfPage === pages;
   if (!shelves.length) { const empty = document.createElement('p'); empty.className = 'empty-notice'; empty.textContent = state.collections.length ? 'No matching shelves.' : 'Create a shelf, then assign words from their detail panel.'; list.appendChild(empty); }
-  for (const shelf of shelves) {
+  for (const shelf of shelves.slice((shelfPage - 1) * SHELVES_PER_PAGE, shelfPage * SHELVES_PER_PAGE)) {
     const item = document.createElement('article'); item.className = 'shelf-row';
     item.innerHTML = `<button class="shelf-open" type="button"><span class="shelf-title">${escapeHtml(shelf.name)}</span><p>${escapeHtml(shelf.description || 'A collection of words')}</p></button><span>${shelf.wordCount} ${shelf.wordCount === 1 ? 'word' : 'words'}</span><button class="btn-subtle shelf-delete" type="button" aria-label="Delete shelf ${escapeHtml(shelf.name)}">Delete shelf</button>`;
     item.querySelector('.shelf-open').addEventListener('click', () => { resetBrowse(); state.collectionFilter = shelf.id; el.filterCollection.value = shelf.id; switchView('lexicon'); });
@@ -200,6 +214,8 @@ function setupDesktop() {
   for (const layout of ['list','grid']) document.getElementById(`view-${layout}-btn`).addEventListener('click', () => { state.layout=layout; desktopPrefs.set('layout',layout); renderLexicon(); });
   for (const [id,step] of [['page-prev',-1],['page-next',1]]) document.getElementById(id).addEventListener('click', () => { state.page += step; renderLexicon(); document.getElementById('result-count').scrollIntoView({block:'nearest'}); });
   document.getElementById('shelf-search').addEventListener('input',renderShelves);
+  document.getElementById('shelf-page-prev').addEventListener('click', () => { shelfPage--; renderShelves(); });
+  document.getElementById('shelf-page-next').addEventListener('click', () => { shelfPage++; renderShelves(); });
   document.getElementById('tag-search').addEventListener('input',renderTagFilterChips);
   const dialogs = [...document.querySelectorAll('.modal-scrim:not(#detail-modal)')];
   const syncInert = () => {
