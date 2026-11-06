@@ -2,16 +2,16 @@
 title: "Wordloom: Browser Extension Capture Companion (FEAT-006)"
 type: prd_and_spec
 feature_code: FEAT-006
-status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+status: ready_to_ship # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
 active_owner: codex # gemini | codex | human
 created_at: 2026-11-06
-updated_at: 2026-11-06
+updated_at: 2026-11-07
 ---
 
 # Feature Specification: FEAT-006 Browser Extension Capture Companion
 
 > **Feature Code:** FEAT-006  
-> **Active Stage:** Stage 2 Complete — Ready for Frontend Integration  
+> **Active Stage:** Stage 4 Complete — Ready to Ship
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -321,7 +321,24 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Final Sign-Off | Popup direct storage fallbacks removed; background is sole mutation owner; regression test passes (86 unit tests, 30 E2E tests passing). |
+| **Stage 4: Review, Security & Verification** | **Codex** | ✅ `ready_to_ship` | Reviewed `a21f7b8`; all audit blockers resolved. Gate: 86/86 unit tests, lint, build, and 30/30 E2E tests passed. |
+
+### Stage 4 final sign-off — 2026-11-07 (Codex)
+
+Approved implementation revision `a21f7b893c1672ed592a66f4485bcfa330d47fbd`. This sign-off supersedes the historical withheld decisions below. All reported audit blockers are resolved.
+
+The background service worker is now the sole outbox writer: enqueue, acknowledgement removal and flush inspection use the serialized `mutateQueue` chain, including recovery after mutation rejection. The popup delegates exclusively through `ENQUEUE_OUTBOX` and `ACK_OUTBOX_ITEM`; no timeout/error branch writes queue arrays. Failed enqueue confirmation returns before draft removal or native delivery. Delayed acknowledgement cannot bypass serialization. Durable-first persistence, 1500 ms native-delivery deadlines, transient-failure retention, capture-ID deduplication, exact native-host extension ID validation and URL normalization remain intact. The earlier CSP and text-only rendering review remains applicable; no new release-blocking finding was identified.
+
+Verification rerun locally against the approved revision:
+
+- `npm test`: **86 passed**, zero failed/cancelled/skipped, including detached-snapshot serialization and dual-controller regression coverage.
+- `npm run lint` and `npm run build`: **exit 0**. Individual syntax checks of popup, service worker and extension tests also passed, supplementing the scripts' entry-point-only checks.
+- `env -u ELECTRON_RUN_AS_NODE PYTHONPATH=/tmp/vocab-qa-python python3 -m unittest discover -s e2e -p verify.py -v`: **30 passed** in **37.691 seconds**.
+- Additional targeted popup check: an enqueue error preserves input and does not remove the stored draft; an ACK delayed beyond the former 100 ms fallback performs zero storage writes.
+
+Validation scope: extension controller behavior is covered by VM tests and source review; the 30 E2E tests exercise Electron. Installing an unpacked extension and registering a real browser/native-host pairing were not exercised by this gate. Existing notes about URL query/fragment secrets and environment-specific host registration remain applicable.
+
+**Stage 4 signed off by Codex: `ready_to_ship`.** The signed specification is synchronized to the project's Obsidian Specifications folder.
 
 ### Stage 4 popup serialization fallback remediation — 2026-11-07 (Gemini)
 
