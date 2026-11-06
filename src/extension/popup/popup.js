@@ -183,65 +183,41 @@ function sendNativeMessage(payload, timeoutMs = NATIVE_DEADLINE_MS) {
 }
 
 async function enqueueToOutbox(payload) {
-  if (chrome?.runtime?.sendMessage) {
-    try {
-      const res = await new Promise(resolve => {
-        let done = false;
-        try {
-          chrome.runtime.sendMessage({ type: 'ENQUEUE_OUTBOX', payload }, reply => {
-            done = true;
-            if (chrome.runtime.lastError || !reply) return resolve(null);
-            resolve(reply);
-          });
-        } catch {
-          return resolve(null);
-        }
-        // Timeout fallback if background message port is closed or mock ignores cb
-        setTimeout(() => { if (!done) resolve(null); }, 100);
-      });
-      if (res?.success) return;
-    } catch {
-      // Fallback to direct storage write
-    }
+  if (!chrome?.runtime?.sendMessage) {
+    throw new Error('Background service unavailable to queue capture');
   }
 
-  if (chrome?.storage?.local) {
-    const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
-    if (!outbox_queue.some(entry => entry.id === payload.id)) {
-      await chrome.storage.local.set({ outbox_queue: [...outbox_queue, payload] });
+  const res = await new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage({ type: 'ENQUEUE_OUTBOX', payload }, reply => {
+        const err = chrome.runtime.lastError;
+        if (err) return reject(new Error(err.message || 'Background worker error'));
+        if (reply?.error) return reject(new Error(reply.error));
+        resolve(reply);
+      });
+    } catch (e) {
+      reject(e);
     }
+  });
+
+  if (!res?.success) {
+    throw new Error('Failed to record capture in background queue');
   }
 }
 
 async function removeAcknowledgedOutboxItem(captureId) {
-  if (chrome?.runtime?.sendMessage) {
-    try {
-      const res = await new Promise(resolve => {
-        let done = false;
-        try {
-          chrome.runtime.sendMessage({ type: 'ACK_OUTBOX_ITEM', captureId }, reply => {
-            done = true;
-            if (chrome.runtime.lastError || !reply) return resolve(null);
-            resolve(reply);
-          });
-        } catch {
-          return resolve(null);
-        }
-        setTimeout(() => { if (!done) resolve(null); }, 100);
-      });
-      if (res?.success) return;
-    } catch {
-      // Fallback
-    }
-  }
+  if (!chrome?.runtime?.sendMessage) return;
 
-  if (chrome?.storage?.local) {
-    const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
-    const remaining = outbox_queue.filter(item => item.id !== captureId);
-    await chrome.storage.local.set({ outbox_queue: remaining });
-    if (chrome?.runtime?.sendMessage) {
-      chrome.runtime.sendMessage({ type: 'REFRESH_BADGE' }, () => {});
-    }
+  try {
+    await new Promise(resolve => {
+      chrome.runtime.sendMessage({ type: 'ACK_OUTBOX_ITEM', captureId }, reply => {
+        // If background worker is slow or drops message, we do NOT perform a direct
+        // storage write here; the background owner retains the capture and will dedup idempotently.
+        resolve(reply);
+      });
+    });
+  } catch {
+    // Non-fatal
   }
 }
 

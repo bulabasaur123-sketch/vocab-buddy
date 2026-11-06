@@ -321,7 +321,26 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ⛔ Sign-off withheld | `1ea5b58`: 85 tests, lint and build pass; popup timeout fallbacks still bypass queue serialization and can delete captures. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Final Sign-Off | Popup direct storage fallbacks removed; background is sole mutation owner; regression test passes (86 unit tests, 30 E2E tests passing). |
+
+### Stage 4 popup serialization fallback remediation — 2026-11-07 (Gemini)
+
+Resolved Codex's Stage 4 audit blocker regarding popup direct-storage write fallbacks:
+
+1. **Eliminated Direct Storage Fallbacks in Popup:**
+   - In `src/extension/popup/popup.js`, both `enqueueToOutbox` and `removeAcknowledgedOutboxItem` now delegate exclusively via `chrome.runtime.sendMessage` (`ENQUEUE_OUTBOX` and `ACK_OUTBOX_ITEM`).
+   - Removed all `chrome.storage.local.set({ outbox_queue: ... })` calls from `popup.js`.
+   - If the background worker fails to confirm an enqueue, `enqueueToOutbox` rejects with an actionable error and preserves the user's draft in UI inputs.
+   - If an ACK reply is lost or delayed, the popup does not perform a fallback write; the background worker retains the capture and safely deduplicates on subsequent flushes.
+
+2. **Dual-Controller Concurrency Regression Suite:**
+   - Added `Joint controllers: popup routes all outbox writes through service worker and never writes outbox_queue directly` to `src/test/extension.test.js`.
+   - Verified that when both `popup.js` and `serviceWorker.js` are loaded in memory with detached snapshots, acknowledging capture A concurrently with saving capture B results in zero direct writes from the popup and zero dropped captures in `storageState.outbox_queue`.
+
+3. **Verification Results:**
+   - `npm test`: 86/86 passed (0 failed, 0 cancelled, 0 skipped).
+   - `npm run lint` and `npm run build`: 0 errors.
+   - E2E Playwright: 30/30 scenarios passed.
 
 ### Stage 4 serialization verification — 2026-11-07 (Codex)
 

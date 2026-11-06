@@ -457,3 +457,128 @@ test('Serialized outbox mutations prevent data loss during acknowledgement remov
   assert.equal(storageState.outbox_queue[0].id, 'cap_B');
   assert.equal(storageState.outbox_queue[0].word, 'perihelion');
 });
+
+test('Joint controllers: popup routes all outbox writes through service worker and never writes outbox_queue directly', async () => {
+  const swContent = fs.readFileSync(path.join(EXTENSION_DIR, 'background/serviceWorker.js'), 'utf8');
+  const popupContent = fs.readFileSync(path.join(EXTENSION_DIR, 'popup/popup.js'), 'utf8');
+
+  // Detached snapshot storage mock
+  let storageState = {
+    outbox_queue: [
+      { id: 'cap_A', word: 'aphelion' }
+    ]
+  };
+
+  let directPopupOutboxWriteAttempted = false;
+
+  const mockStorage = {
+    local: {
+      get: async () => JSON.parse(JSON.stringify(storageState)),
+      set: async (obj, caller = 'background') => {
+        if (caller === 'popup' && obj && 'outbox_queue' in obj) {
+          directPopupOutboxWriteAttempted = true;
+          throw new Error('FAIL: Popup attempted direct write to outbox_queue!');
+        }
+        Object.assign(storageState, JSON.parse(JSON.stringify(obj)));
+      },
+      remove: async () => {}
+    }
+  };
+
+  let swMessageListener = null;
+  const swChrome = {
+    runtime: {
+      onInstalled: { addListener: () => {} },
+      onMessage: { addListener: fn => { swMessageListener = fn; } },
+      lastError: null,
+      sendNativeMessage: () => {}
+    },
+    action: {
+      setBadgeBackgroundColor: () => {},
+      setBadgeText: () => {}
+    },
+    contextMenus: {
+      create: () => {},
+      onClicked: { addListener: () => {} }
+    },
+    storage: {
+      local: {
+        get: mockStorage.local.get,
+        set: obj => mockStorage.local.set(obj, 'background'),
+        remove: mockStorage.local.remove
+      }
+    }
+  };
+
+  const swContext = vm.createContext({
+    chrome: swChrome,
+    setTimeout: fn => fn(),
+    clearTimeout: () => {},
+    console
+  });
+  vm.runInContext(swContent, swContext);
+
+  // Wire popup's chrome.runtime.sendMessage directly to service worker's onMessage listener
+  const popupChrome = {
+    runtime: {
+      lastError: null,
+      sendNativeMessage: (host, msg, cb) => {
+        // Simulate bridge transient ENRICHMENT_FAILED
+        cb({ status: 'error', code: 'ENRICHMENT_FAILED', message: 'Dictionary timeout' });
+      },
+      sendMessage: (msg, cb) => {
+        if (swMessageListener) {
+          swMessageListener(msg, {}, response => {
+            if (cb) cb(response);
+          });
+        } else if (cb) {
+          cb({ error: 'No service worker' });
+        }
+      }
+    },
+    storage: {
+      local: {
+        get: mockStorage.local.get,
+        set: obj => mockStorage.local.set(obj, 'popup'),
+        remove: mockStorage.local.remove
+      }
+    }
+  };
+
+  function createElement() {
+    return { value: '', textContent: '', className: '', disabled: false, classList: { add() {}, remove() {} }, addEventListener() {} };
+  }
+  const elements = Object.fromEntries([
+    'capture-form', 'input-word', 'input-excerpt', 'input-title', 'input-url', 'input-notes',
+    'btn-clear-excerpt', 'btn-clear-source', 'btn-discard-draft', 'btn-save',
+    'save-status', 'draft-banner', 'bridge-status-indicator', 'bridge-status-text'
+  ].map(id => [id, createElement()]));
+
+  elements['input-word'].value = 'perihelion';
+  elements['input-excerpt'].value = 'The point in orbit closest to the sun.';
+
+  const popupContext = vm.createContext({
+    URL: globalThis.URL,
+    document: { getElementById: id => elements[id], addEventListener: () => {} },
+    window: { addEventListener: () => {}, close: () => {} },
+    chrome: popupChrome,
+    crypto: { randomUUID: () => 'cap_B_uuid' },
+    setTimeout: fn => fn(),
+    clearTimeout: () => {}
+  });
+  vm.runInContext(popupContent, popupContext);
+
+  // Concurrently acknowledge item A through background while popup saves item B
+  const ackPromise = new Promise(resolve => swMessageListener({ type: 'ACK_OUTBOX_ITEM', captureId: 'cap_A' }, {}, resolve));
+  const savePromise = vm.runInContext('handleSave();', popupContext);
+
+  await Promise.all([ackPromise, savePromise]);
+
+  // 1. Popup NEVER directly wrote outbox_queue
+  assert.equal(directPopupOutboxWriteAttempted, false, 'Popup must never write outbox_queue directly');
+
+  // 2. Queue retained item B without data loss from A's acknowledgment
+  assert.equal(storageState.outbox_queue.length, 1);
+  assert.equal(storageState.outbox_queue[0].word, 'perihelion');
+  assert.match(elements['save-status'].textContent, /Saved locally in browser/);
+});
