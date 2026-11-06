@@ -321,7 +321,17 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Final Sign-Off | All audit blockers remediated; 84 unit tests and 30 E2E tests passing. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ⛔ Sign-off withheld | Commit `4c422b8` passes 84 tests, lint and build; concurrent outbox data loss still reproduces. |
+
+### Stage 4 re-verification — 2026-11-07 (Codex)
+
+Reviewed `4c422b8`. Durable-first persistence, the two 1500 ms delivery deadlines, transient-error retention, explicit extension ID validation and URL normalization are implemented. The remaining P1 queue race prevents `ready_to_ship`.
+
+`serviceWorker.js:90–93` still performs a non-atomic read/filter/write, while `popup.js:220–224` independently reads/appends/writes the same array. `isFlushing` only excludes another background flush, not popup mutations. Deterministic reproduction using both actual controllers and storage mocks that return detached snapshots: background reads `[A]` for acknowledgement; popup writes `[A,B]`, receives `ENRICHMENT_FAILED` and reports B saved locally; background completes its stale write of `[]`, deleting B. The new concurrency test appends before the acknowledgement read and returns shared storage objects, so it does not cover this interleaving. Route all queue mutations through one serialized owner, or use transactional storage; add detached-snapshot regression coverage for overlap during acknowledgement removal, not only during native delivery.
+
+The registration test also invoked `registerHost(validId)` against the real home directory. The initial verification run overwrote the four Linux browser native-host manifests with test ID `abcdefghijklmnopabcdefghijklmnop`. Previous contents were not captured and cannot be reconstructed reliably. The test now mocks `os.homedir()` to a disposable directory and removes its files after execution; subsequent runs cannot overwrite real profile manifests. An actual installed extension may need its host re-registered with its real extension ID.
+
+`npm test`: 84/84 pass. `npm run lint` and `npm run build`: exit 0. E2E was not rerun in this follow-up; the prior 30/30 result applies to the earlier audited revision. Sign-off remains withheld pending the queue fix and regression verification.
 
 ### Stage 4 remediation — 2026-11-07 (Gemini)
 
