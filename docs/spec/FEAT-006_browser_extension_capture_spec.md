@@ -321,7 +321,35 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Codex | Audit CSP, test outbox edge cases, run full verification gate. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ⛔ Sign-off withheld | Verification suites pass; extension outbox correctness must be repaired before `ready_to_ship`. See audit below. |
+
+### Stage 4 audit — 2026-11-07
+
+Reviewed Stage 3 commit `d078041` against parent `97df1e1`, including the supporting native bridge, dictionary and storage paths. No confirmed executable injection path was found. Sign-off is withheld for the following release blockers; Stage 3 fixes belong to Gemini under AGENTS.md.
+
+| Priority | Location | Finding and required correction |
+| :--- | :--- | :--- |
+| P1 | `src/extension/background/serviceWorker.js:72–98`; `src/extension/popup/popup.js:197–199` | Flush reads a queue snapshot and later replaces the entire queue. A capture appended while native delivery is pending is erased without being delivered. Reproduced with queue A, append B during delivery, acknowledge A: stored queue becomes empty. Centralize serialized queue mutations and remove only acknowledged capture IDs. |
+| P1 | `src/extension/popup/popup.js:137–147,179`; `src/extension/background/serviceWorker.js:48–59` | Neither native-message wrapper implements the specified 1500 ms deadline. A pending callback leaves the save unresolved with no durable queue write; enrichment can take longer than the popup remains open. Reproduced with a withheld callback: no timeout is scheduled and no item is queued. Persist the capture before delivery, enforce the deadline, and retain the same capture ID for late replies/retries. |
+| P2 | `src/extension/popup/popup.js:193–194` | A reachable host returning `ENRICHMENT_FAILED` after a network drop produces an error instead of an offline outbox entry. Reproduced with the actual popup controller and a simulated bridge response. Queue retryable enrichment/storage failures, retain the draft until durable storage succeeds, and distinguish invalid input from transient failure. |
+| P2 | `scripts/registerNativeHost.js:54` | Running registration without an extension ID writes wildcard `allowed_origins`, which Chrome does not permit. Require a valid explicit extension ID and fail before writing manifests; no wildcard fallback. This is a registration failure, not a demonstrated allowlist bypass. |
+
+Security observations:
+
+- Manifest V3 uses an event service worker and the scoped `activeTab`, `scripting`, `storage`, `contextMenus`, and `nativeMessaging` permissions, with no broad host permissions or persistent content-script declaration. The omitted CSP inherits Chrome's `script-src 'self'; object-src 'self'`, blocking remote/inline scripts and string evaluation. The popup loads only packaged JS/CSS. See [Chrome CSP documentation](https://developer.chrome.com/docs/extensions/reference/manifest/content-security-policy).
+- Capture strips tags/control characters and bounds fields; popup rendering uses `.value`/`.textContent`. Backend validation bounds native frames and payload fields, rejects non-HTTP(S) and credential-bearing URLs, and uses parameterized SQLite writes. Regex tag stripping alone is not a general HTML sanitizer; safety here also depends on the text-only sinks.
+- The primary capture URL cleaner strips username/password. The popup's failed-injection fallback copies `activeTab.url` without that cleaner, and manual input is queued before backend validation. Apply the same URL normalization before draft/outbox writes. Query strings and fragments are retained and may themselves contain secrets; no blanket credential-leakage guarantee is made.
+- Only the normalized headword reaches dictionary enrichment; excerpt, title, URL and notes remain in local persistence. Existing backend tests cover duplicate/replay idempotency and preserved review state.
+- Chrome launches the registered native host independently of the desktop window; a closed desktop window alone does not require queueing. An unavailable host does queue, and a failed flush retains the failed entry and subsequent entries in order. The popup's probe is not a supported backend operation: any response, including `DB_UNAVAILABLE`, currently labels the bridge connected. Define a health response or avoid interpreting error responses as library readiness. See [Chrome native messaging documentation](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging).
+
+Verification executed successfully:
+
+- `npm run lint` and `npm run build` — exit 0. These scripts pass multiple filenames to `node --check`, which checks only the first entry point; a separate per-file syntax check of all 35 JavaScript files also passed.
+- `npm test` — 82 passed, 0 failed, 0 skipped.
+- `env -u ELECTRON_RUN_AS_NODE PYTHONPATH=/tmp/vocab-qa-python python3 -m unittest discover -s e2e -p verify.py -v` — 30 passed in 40.072 seconds.
+- Targeted Node VM checks reproduced the three outbox failures above. The existing E2E suite exercises Electron, not an installed browser extension; browser/native-host registration remains unverified.
+
+Return to Stage 4 after Gemini repairs these paths and adds extension integration coverage for concurrent queue writes, interrupted saves, transient failures, and reconnection. Do not mark `ready_to_ship` until those checks pass.
 
 ---
 
