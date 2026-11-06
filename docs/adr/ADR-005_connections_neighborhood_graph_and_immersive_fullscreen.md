@@ -104,3 +104,4 @@ We adopted **Option C**.
 
 ### Tradeoffs
 - Readers cannot view all words simultaneously on one macroscopic screen; they navigate by pivoting through connected nodes.
+

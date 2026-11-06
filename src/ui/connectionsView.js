@@ -88,9 +88,11 @@ function initConnectionsView() {
 function setConnectionsViewMode(mode) {
   connectionsState.viewMode = mode;
   const isGraph = mode === 'graph';
-  if (!isGraph && document.body.classList.contains('map-fullscreen')) {
+  if (!isGraph) {
     document.body.classList.remove('map-fullscreen');
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
   }
   const controls = document.querySelector('.map-controls');
   if (controls) controls.classList.toggle('hidden', !isGraph);

@@ -95,8 +95,8 @@ function renderShelves() {
     item.innerHTML = `<button class="shelf-open" type="button"><span class="shelf-title">${escapeHtml(shelf.name)}</span><p>${escapeHtml(shelf.description || 'A collection of words')}</p></button><span>${shelf.wordCount} ${shelf.wordCount === 1 ? 'word' : 'words'}</span><button class="btn-subtle shelf-delete" type="button" aria-label="Delete shelf ${escapeHtml(shelf.name)}">Delete shelf</button>`;
     item.querySelector('.shelf-open').addEventListener('click', () => { resetBrowse(); state.collectionFilter = shelf.id; el.filterCollection.value = shelf.id; switchView('lexicon'); });
     item.querySelector('.shelf-delete').addEventListener('click', async () => {
-      if (!confirm(`Delete “${shelf.name}”? Its words will stay in your Lexicon.`)) return;
-      try { await window.vocabAPI.deleteCollection(shelf.id); if (state.collectionFilter === shelf.id) state.collectionFilter = 'all'; await refreshAll(); announce('Shelf deleted. Your words are still in the Lexicon.'); }
+      if (!confirm(`Delete “${shelf.name}”? Its words will stay in your Library.`)) return;
+      try { await window.vocabAPI.deleteCollection(shelf.id); if (state.collectionFilter === shelf.id) state.collectionFilter = 'all'; await refreshAll(); announce('Shelf deleted. Your words are still in the Library.'); }
       catch { announce('Could not delete this shelf. Try again.',true); }
     });
     list.appendChild(item);

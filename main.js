@@ -8,7 +8,7 @@ const { LibraryStore } = require('./src/store/libraryStore');
 const { registerHandlers, createBackendServices } = require('./src/services/ipc');
 const entry = path.join(__dirname, 'index.html');
 const entryUrl = pathToFileURL(entry).href;
-const placeholder = 'data:text/html;charset=utf-8,' + encodeURIComponent('<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'"><title>Vocab Buddy</title><h1>Vocab Buddy</h1><p>Backend ready. Frontend integration is pending Stage 3.</p>');
+const placeholder = 'data:text/html;charset=utf-8,' + encodeURIComponent('<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'"><title>Wordloom</title><h1>Wordloom</h1><p>Backend ready. Frontend integration is pending Stage 3.</p>');
 let window;
 function createWindow() {
   window = new BrowserWindow({ width: 1200, height: 800, webPreferences: {
@@ -19,7 +19,7 @@ function createWindow() {
   window.webContents.on('will-attach-webview', event => event.preventDefault());
   window.on('closed', () => { window = null; });
   const loading = fs.existsSync(entry) ? window.loadFile(entry) : window.loadURL(placeholder);
-  loading.catch(error => console.error('Unable to load Vocab Buddy:', error.message));
+  loading.catch(error => console.error('Unable to load Wordloom:', error.message));
 }
 app.whenReady().then(() => {
   // Fullscreen is available only to this window's local, top-level app page.

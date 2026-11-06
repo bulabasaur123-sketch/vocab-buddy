@@ -324,7 +324,7 @@ function populateCollectionSelects() {
   if (el.quizScopeSelect) {
     const currentScope = el.quizScopeSelect.value || 'all';
     el.quizScopeSelect.innerHTML = `
-      <option value="all">Entire Lexicon</option>
+      <option value="all">Entire Library</option>
       <option value="favorites">⭐ Favorites Only</option>
     `;
     (state.collections || []).forEach(col => {
@@ -387,7 +387,7 @@ async function refreshAll() {
 
   el.navCountLexicon.textContent = stats.total;
   el.navCountDue.textContent = stats.due;
-  el.colophonTally.textContent = `${stats.total} entries in personal lexicon · ${stats.due} due for review · ${stats.mastered} mastered`;
+  el.colophonTally.textContent = `${stats.total} entries in personal library · ${stats.due} due for review · ${stats.mastered} mastered`;
 
   populateCollectionSelects();
   renderTagFilterChips();

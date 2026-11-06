@@ -1,6 +1,6 @@
-# DESIGN.md — Vocab Buddy Design Specification
+# DESIGN.md — Wordloom Design Specification
 
-> **Aesthetic Direction:** *The Modern Editorial Lexicon*  
+> **Aesthetic Direction:** *The Modern Editorial Library*  
 > **Anti-Slop Posture:** Zero AI tropes. No neon purple/cyan gradients, no floating glassmorphism, no meaningless emojis/sparkles, no buzzwords. Crafted specifically for readers and book lovers.
 
 ---
@@ -54,7 +54,7 @@ No generic browser defaults. We employ a triple-font hierarchy rooted in print l
 
 ## 4. Anti-Slop Audit: What We Explicitly Cut
 
-| AI Slop Trope (The "Tells") | What Vocab Buddy Uses Instead |
+| AI Slop Trope (The "Tells") | What Wordloom Uses Instead |
 | :--- | :--- |
 | **Neon blue-to-purple gradients & glowing borders** | Solid, matte surfaces with crisp 1px borders inspired by printed rule lines. |
 | **Glassmorphism on every card and navbar** | Solid paper/carbon cards with single-plane elevation. |

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' data: https: http:; img-src 'self' data: https:; script-src 'self';">
-  <title>Vocab Buddy — Personal Lexicon</title>
+  <title>Wordloom — Personal Library</title>
 
   <!-- Typography: Editorial Serif (Newsreader), Grotesque Sans (Inter), Technical Monospace (JetBrains Mono) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,10 +19,10 @@
 
     <a href="#main-content" class="skip-link">Skip to content</a>
     <aside class="sidebar" aria-label="Application navigation">
-      <a class="brand" href="#lexicon" id="brand-home">Vocab Buddy<span>A personal lexicon</span></a>
+      <a class="brand" href="#lexicon" id="brand-home">Wordloom<span>A personal library</span></a>
       <button id="nav-menu" class="btn-subtle" aria-expanded="false" aria-controls="primary-nav">Menu</button>
       <nav id="primary-nav" class="primary-nav" aria-label="Main">
-        <button id="nav-lexicon-btn" class="nav-link active" aria-current="page">Lexicon <span id="nav-count-lexicon" class="counter-badge">0</span></button>
+        <button id="nav-lexicon-btn" class="nav-link active" aria-current="page">Library <span id="nav-count-lexicon" class="counter-badge">0</span></button>
         <button id="nav-review-btn" class="nav-link">Review Deck <span id="nav-count-due" class="counter-badge">0</span></button>
         <button id="nav-quiz-btn" class="nav-link">Active Quiz</button>
         <button id="nav-connections-btn" class="nav-link">Connections</button>
@@ -35,9 +35,9 @@
     <main id="main-content" class="content-body" tabindex="-1">
       <div id="app-status" class="app-status hidden" role="status" aria-live="polite"></div>
 
-      <!-- VIEW 1: Lexicon (Library) -->
+      <!-- VIEW 1: Library -->
       <section id="view-lexicon" class="view-panel active" aria-labelledby="lexicon-title">
-        <header class="page-heading"><div><p class="eyebrow">Your reading, remembered</p><h1 id="lexicon-title">Lexicon</h1><p class="page-description">A place for the words you want to keep.</p></div><button id="btn-add-word" class="btn-record">Add Word <kbd>N</kbd></button></header>
+        <header class="page-heading"><div><p class="eyebrow">Your reading, remembered</p><h1 id="lexicon-title">Library</h1><p class="page-description">A place for the words you want to keep.</p></div><button id="btn-add-word" class="btn-record">Add Word <kbd>N</kbd></button></header>
 
         <div class="lexicon-controls">
           <div class="search-wrap"><label for="search-input" class="sr-only">Search words, definitions, or citations</label>
@@ -211,7 +211,7 @@
             <h3 class="complete-title">Session Complete</h3>
             <p id="complete-summary" class="complete-text">All scheduled reviews have been completed for today.</p>
             <button type="button" id="btn-return-lexicon" class="btn-subtle" style="margin-top: 1.25rem;">
-              Return to Lexicon
+              Return to Library
             </button>
           </div>
 
@@ -238,7 +238,7 @@
               <div class="field-cluster">
                 <label for="quiz-scope-select" class="field-label">Scope</label>
                 <select id="quiz-scope-select" class="entry-input select-scope">
-                  <option value="all">Entire Lexicon</option>
+                  <option value="all">Entire Library</option>
                   <option value="favorites">Favorites only</option>
                 </select>
               </div>
@@ -308,7 +308,7 @@
                 Take Another Quiz
               </button>
               <button type="button" id="btn-quiz-to-lexicon" class="btn-subtle">
-                Return to Lexicon
+                Return to Library
               </button>
             </div>
           </div>
@@ -316,7 +316,7 @@
           <!-- Quiz Empty Notice -->
           <div id="quiz-empty-notice" class="empty-notice hidden">
             <p class="empty-heading">Not Enough Words for Quiz</p>
-            <p id="quiz-empty-sub" class="empty-sub">You need at least 4 words recorded in your lexicon (with definitions and examples) to generate this quiz.</p>
+            <p id="quiz-empty-sub" class="empty-sub">You need at least 4 words recorded in your library (with definitions and examples) to generate this quiz.</p>
           </div>
 
         </div>
@@ -354,7 +354,7 @@
         <div id="connections-arena" class="connections-arena">
           <div id="connections-prompt" class="connections-prompt empty-notice hidden">
             <p id="connections-prompt-heading" class="empty-heading">Select a word to explore its connections</p>
-            <p id="connections-prompt-sub" class="empty-sub">Choose any entry from your lexicon to see its books, tags, shelves, and personal associations.</p>
+            <p id="connections-prompt-sub" class="empty-sub">Choose any entry from your library to see its books, tags, shelves, and personal associations.</p>
           </div>
 
           <div id="connections-canvas-container" class="connections-canvas-container">
@@ -396,14 +396,14 @@
         <div class="settings-section"><h2>Appearance</h2><p>Choose a comfortable reading environment.</p><button id="btn-theme-toggle" class="btn-subtle"><span class="theme-label-light">Use dark appearance</span><span class="theme-label-dark">Use light appearance</span></button><button id="btn-fullscreen-toggle" class="btn-subtle" type="button"><span id="fullscreen-btn-label">Enter full screen</span> <kbd>F11</kbd></button><label for="reading-size">Reading size</label><select id="reading-size" class="filter-select"><option value="normal">Standard</option><option value="large">Large</option></select></div>
         <div class="settings-section"><h2>Your library</h2><p>Export your vocabulary as a JSON file. Shelf definitions are not included in this export.</p><button id="btn-export" class="btn-subtle">Export vocabulary</button></div>
         <div class="settings-section"><h2>Pronunciation</h2><p>Keep available recordings on this device for offline listening. Missing recordings are checked against alternative sources.</p><button id="btn-repair-audio" class="btn-subtle">Check missing pronunciations</button><p id="repair-audio-status" role="status" aria-live="polite"></p></div>
-        <div class="settings-section"><h2>Learning & keyboard</h2><p>Review uses five Leitner boxes. Correct recall moves a word further from its next review.</p><button id="btn-cadence-guide" class="btn-subtle">How review scheduling works</button><dl class="shortcut-list"><dt>N</dt><dd>Add a word from Lexicon</dd><dt>/</dt><dd>Search Lexicon</dd><dt>Space / Enter</dt><dd>Reveal a review card</dd><dt>1–4</dt><dd>Grade a revealed card or answer a quiz</dd><dt>F11</dt><dd>Toggle full screen</dd><dt>Escape</dt><dd>Close a dialog or word detail</dd></dl></div>
+        <div class="settings-section"><h2>Learning & keyboard</h2><p>Review uses five Leitner boxes. Correct recall moves a word further from its next review.</p><button id="btn-cadence-guide" class="btn-subtle">How review scheduling works</button><dl class="shortcut-list"><dt>N</dt><dd>Add a word to Library</dd><dt>/</dt><dd>Search Library</dd><dt>Space / Enter</dt><dd>Reveal a review card</dd><dt>1–4</dt><dd>Grade a revealed card or answer a quiz</dd><dt>F11</dt><dd>Toggle full screen</dd><dt>Escape</dt><dd>Close a dialog or word detail</dd></dl></div>
       </section>
     </main>
 
     <!-- Reader's Colophon / Footer -->
     <footer class="colophon">
       <div class="colophon-left">
-        <span id="colophon-tally">0 entries in personal lexicon · 0 due for review</span>
+        <span id="colophon-tally">0 entries in personal library · 0 due for review</span>
       </div>
       <div class="colophon-right">
         <span>Curated for Book Readers</span>
@@ -524,7 +524,7 @@
             <span id="modal-schedule-stamp" class="schedule-stamp">Next review: Today</span>
           </div>
           <button type="button" id="modal-delete-btn" class="btn-delete">
-            Remove from Lexicon
+            Remove from Library
           </button>
         </div>
 
