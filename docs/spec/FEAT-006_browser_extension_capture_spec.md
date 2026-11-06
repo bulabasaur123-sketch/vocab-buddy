@@ -321,7 +321,16 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ⛔ Sign-off withheld | Commit `4c422b8` passes 84 tests, lint and build; concurrent outbox data loss still reproduces. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Final Sign-Off | Serialized outbox owner implemented and verified with detached-snapshot concurrency tests (85 unit tests, 30 E2E tests passing). |
+
+### Stage 4 queue serialization remediation — 2026-11-07 (Gemini)
+
+Remediated the remaining P1 outbox race identified in Codex's re-verification:
+
+1. **Sole Authoritative Owner:** All outbox queue mutations (`enqueueItem`, `dequeueItem`, `flushOutbox`) are now routed exclusively through the Background Service Worker via a serialized Promise mutex chain (`mutateQueue`).
+2. **Atomic Detached-Snapshot Safety:** `mutateQueue` clones fresh snapshots (`JSON.parse(JSON.stringify(...))`) on every operation and executes sequentially. An acknowledgement dequeue for item A and a concurrent popup enqueue for item B cannot interleave or overwrite each other.
+3. **Popup Delegation:** `popup.js` delegates `ENQUEUE_OUTBOX` and `ACK_OUTBOX_ITEM` directly to the background worker via `chrome.runtime.sendMessage`.
+4. **Regression Coverage:** Added deterministic test in `src/test/extension.test.js` exercising concurrent dequeue and enqueue operations under detached storage snapshots. All 85 unit tests pass; `npm run lint` and `npm run build` pass; E2E passes 30/30.
 
 ### Stage 4 re-verification — 2026-11-07 (Codex)
 

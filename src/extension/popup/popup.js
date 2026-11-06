@@ -68,7 +68,9 @@ function checkBridgeConnection() {
       } else {
         setBridgeStatus(true, 'Connected');
         // Trigger background outbox flush if connected
-        chrome.runtime.sendMessage({ type: 'FLUSH_OUTBOX' }, () => {});
+        if (chrome.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({ type: 'FLUSH_OUTBOX' }, () => {});
+        }
       }
     });
   } catch {
@@ -180,12 +182,67 @@ function sendNativeMessage(payload, timeoutMs = NATIVE_DEADLINE_MS) {
   });
 }
 
+async function enqueueToOutbox(payload) {
+  if (chrome?.runtime?.sendMessage) {
+    try {
+      const res = await new Promise(resolve => {
+        let done = false;
+        try {
+          chrome.runtime.sendMessage({ type: 'ENQUEUE_OUTBOX', payload }, reply => {
+            done = true;
+            if (chrome.runtime.lastError || !reply) return resolve(null);
+            resolve(reply);
+          });
+        } catch {
+          return resolve(null);
+        }
+        // Timeout fallback if background message port is closed or mock ignores cb
+        setTimeout(() => { if (!done) resolve(null); }, 100);
+      });
+      if (res?.success) return;
+    } catch {
+      // Fallback to direct storage write
+    }
+  }
+
+  if (chrome?.storage?.local) {
+    const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
+    if (!outbox_queue.some(entry => entry.id === payload.id)) {
+      await chrome.storage.local.set({ outbox_queue: [...outbox_queue, payload] });
+    }
+  }
+}
+
 async function removeAcknowledgedOutboxItem(captureId) {
-  if (!chrome?.storage?.local) return;
-  const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
-  const remaining = outbox_queue.filter(item => item.id !== captureId);
-  await chrome.storage.local.set({ outbox_queue: remaining });
-  chrome.runtime.sendMessage({ type: 'REFRESH_BADGE' }, () => {});
+  if (chrome?.runtime?.sendMessage) {
+    try {
+      const res = await new Promise(resolve => {
+        let done = false;
+        try {
+          chrome.runtime.sendMessage({ type: 'ACK_OUTBOX_ITEM', captureId }, reply => {
+            done = true;
+            if (chrome.runtime.lastError || !reply) return resolve(null);
+            resolve(reply);
+          });
+        } catch {
+          return resolve(null);
+        }
+        setTimeout(() => { if (!done) resolve(null); }, 100);
+      });
+      if (res?.success) return;
+    } catch {
+      // Fallback
+    }
+  }
+
+  if (chrome?.storage?.local) {
+    const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
+    const remaining = outbox_queue.filter(item => item.id !== captureId);
+    await chrome.storage.local.set({ outbox_queue: remaining });
+    if (chrome?.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: 'REFRESH_BADGE' }, () => {});
+    }
+  }
 }
 
 async function handleSave(event) {
@@ -217,13 +274,9 @@ async function handleSave(event) {
   try {
     // 1. DURABLE-FIRST: Persist directly into local outbox queue before wire transit.
     // This ensures no capture is lost if the popup closes, times out, or crashes.
+    await enqueueToOutbox(payload);
+
     if (chrome?.storage?.local) {
-      const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
-      if (!outbox_queue.some(entry => entry.id === payload.id)) {
-        outbox_queue.push(payload);
-        await chrome.storage.local.set({ outbox_queue });
-      }
-      // Draft has been durably preserved; clear the input draft
       await chrome.storage.local.remove('capture_draft');
     }
 

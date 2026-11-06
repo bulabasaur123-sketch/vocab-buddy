@@ -2,51 +2,53 @@
 
 /**
  * Wordloom Background Service Worker (Manifest V3)
- * Handles context menu capture, 1500ms delivery deadlines, and serialized outbox synchronization.
+ * Authoritative owner of outbox queue mutations, context menu capture,
+ * 1500ms delivery deadlines, and serialized outbox synchronization.
  */
 
 const NATIVE_HOST = 'com.wordloom.bridge';
 const NATIVE_DEADLINE_MS = 1500;
 
 let isFlushing = false;
+let queueMutationPromise = Promise.resolve();
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'wordloom-capture-selection',
-    title: 'Capture to Wordloom',
-    contexts: ['selection']
+/**
+ * Serializes all queue mutations through a promise chain to prevent race conditions
+ * and detached-snapshot overwrites between concurrent popup saves and background flushes.
+ */
+function mutateQueue(fn) {
+  const next = queueMutationPromise.then(async () => {
+    const data = await chrome.storage.local.get(['outbox_queue']);
+    const currentQueue = Array.isArray(data?.outbox_queue) ? JSON.parse(JSON.stringify(data.outbox_queue)) : [];
+    const updated = await fn(currentQueue);
+    if (updated !== undefined) {
+      await chrome.storage.local.set({ outbox_queue: updated });
+    }
+    await refreshBadge();
+    return updated;
   });
 
-  chrome.action.setBadgeBackgroundColor({ color: '#852B3B' });
-  refreshBadge();
-});
+  queueMutationPromise = next.catch(err => {
+    console.error('Wordloom outbox mutation error:', err);
+  });
 
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== 'wordloom-capture-selection' || !tab?.id) return;
+  return next;
+}
 
-  try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ['content/captureScript.js']
-    });
-
-    const capture = results?.[0]?.result;
-    if (capture) {
-      await chrome.storage.local.set({
-        capture_draft: {
-          ...capture,
-          updatedAt: Date.now()
-        }
-      });
+function enqueueItem(payload) {
+  return mutateQueue(queue => {
+    if (!queue.some(entry => entry.id === payload.id)) {
+      return [...queue, payload];
     }
+    return queue;
+  });
+}
 
-    if (chrome.action.openPopup) {
-      await chrome.action.openPopup();
-    }
-  } catch (err) {
-    console.error('Wordloom context capture error:', err);
-  }
-});
+function dequeueItem(captureId) {
+  return mutateQueue(queue => {
+    return queue.filter(entry => entry.id !== captureId);
+  });
+}
 
 function sendNativeMessage(payload, timeoutMs = NATIVE_DEADLINE_MS) {
   return new Promise((resolve, reject) => {
@@ -79,25 +81,19 @@ function sendNativeMessage(payload, timeoutMs = NATIVE_DEADLINE_MS) {
 
 async function refreshBadge() {
   try {
-    const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
+    const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
     const count = outbox_queue.length;
-    chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' });
+    if (chrome?.action?.setBadgeText) {
+      chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' });
+    }
   } catch {
     // Non-fatal badge update
   }
 }
 
-async function dequeueAcknowledgedId(captureId) {
-  const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
-  const updated = outbox_queue.filter(entry => entry.id !== captureId);
-  await chrome.storage.local.set({ outbox_queue: updated });
-  await refreshBadge();
-  return updated;
-}
-
 async function flushOutbox() {
   if (isFlushing) {
-    const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
+    const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
     return { flushing: true, remaining: outbox_queue.length };
   }
 
@@ -106,10 +102,15 @@ async function flushOutbox() {
 
   try {
     while (true) {
-      const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
-      if (!outbox_queue.length) break;
+      // Safely inspect the current head of the queue through the mutation serializer
+      let currentItem = null;
+      await mutateQueue(queue => {
+        if (queue.length > 0) currentItem = queue[0];
+        return undefined; // Read-only inspection
+      });
 
-      const currentItem = outbox_queue[0];
+      if (!currentItem) break;
+
       let res;
       try {
         res = await sendNativeMessage(currentItem);
@@ -121,10 +122,10 @@ async function flushOutbox() {
       if (res && res.status === 'success') {
         flushedCount++;
         // Remove only this acknowledged capture ID, preserving any items appended concurrently
-        await dequeueAcknowledgedId(currentItem.id);
+        await dequeueItem(currentItem.id);
       } else if (res && res.code === 'INVALID_PAYLOAD') {
         // Non-retryable input error: dequeue to avoid blocking the remainder of the outbox
-        await dequeueAcknowledgedId(currentItem.id);
+        await dequeueItem(currentItem.id);
       } else {
         // Transient error (ENRICHMENT_FAILED, DB_UNAVAILABLE): retain in outbox and halt flush
         break;
@@ -135,17 +136,84 @@ async function flushOutbox() {
     await refreshBadge();
   }
 
-  const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
+  const { outbox_queue = [] } = (await chrome.storage.local.get(['outbox_queue'])) || {};
   return { flushed: flushedCount, remaining: outbox_queue.length };
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'FLUSH_OUTBOX') {
-    flushOutbox().then(sendResponse).catch(err => sendResponse({ error: err.message }));
-    return true; // Keep message channel open for async reply
-  }
-  if (message?.type === 'REFRESH_BADGE') {
-    refreshBadge().then(() => sendResponse({ success: true }));
-    return true;
-  }
-});
+if (typeof chrome !== 'undefined' && chrome.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener(() => {
+    chrome.contextMenus.create({
+      id: 'wordloom-capture-selection',
+      title: 'Capture to Wordloom',
+      contexts: ['selection']
+    });
+
+    if (chrome.action?.setBadgeBackgroundColor) {
+      chrome.action.setBadgeBackgroundColor({ color: '#852B3B' });
+    }
+    refreshBadge();
+  });
+
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+    if (info.menuItemId !== 'wordloom-capture-selection' || !tab?.id) return;
+
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content/captureScript.js']
+      });
+
+      const capture = results?.[0]?.result;
+      if (capture) {
+        await chrome.storage.local.set({
+          capture_draft: {
+            ...capture,
+            updatedAt: Date.now()
+          }
+        });
+      }
+
+      if (chrome.action?.openPopup) {
+        await chrome.action.openPopup();
+      }
+    } catch (err) {
+      console.error('Wordloom context capture error:', err);
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === 'ENQUEUE_OUTBOX') {
+      enqueueItem(message.payload)
+        .then(() => sendResponse({ success: true }))
+        .catch(err => sendResponse({ error: err.message }));
+      return true;
+    }
+    if (message?.type === 'ACK_OUTBOX_ITEM') {
+      dequeueItem(message.captureId)
+        .then(() => sendResponse({ success: true }))
+        .catch(err => sendResponse({ error: err.message }));
+      return true;
+    }
+    if (message?.type === 'FLUSH_OUTBOX') {
+      flushOutbox()
+        .then(sendResponse)
+        .catch(err => sendResponse({ error: err.message }));
+      return true;
+    }
+    if (message?.type === 'REFRESH_BADGE') {
+      refreshBadge().then(() => sendResponse({ success: true }));
+      return true;
+    }
+  });
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    sendNativeMessage,
+    refreshBadge,
+    mutateQueue,
+    enqueueItem,
+    dequeueItem,
+    flushOutbox
+  };
+}

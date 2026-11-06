@@ -119,7 +119,7 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
       },
       addEventListener(event, fn) { listeners[event] = listeners[event] || []; listeners[event].push(fn); },
       trigger(event, data) { for (const fn of listeners[event] || []) fn(data); },
-      focus() { }
+      focus() {}
     };
   }
 
@@ -142,7 +142,19 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
     runtime: {
       lastError: null,
       sendNativeMessage: (host, msg, cb) => cb({ status: 'success', word: 'susurrus', isDuplicate: false }),
-      sendMessage: () => { }
+      sendMessage: (msg, cb) => {
+        if (msg?.type === 'ENQUEUE_OUTBOX') {
+          if (!outboxStorage.outbox_queue.some(e => e.id === msg.payload.id)) {
+            outboxStorage.outbox_queue.push(msg.payload);
+          }
+          if (cb) cb({ success: true });
+        } else if (msg?.type === 'ACK_OUTBOX_ITEM') {
+          outboxStorage.outbox_queue = outboxStorage.outbox_queue.filter(e => e.id !== msg.captureId);
+          if (cb) cb({ success: true });
+        } else if (cb) {
+          cb({ success: true });
+        }
+      }
     },
     tabs: { query: (opts, cb) => cb([{ id: 1, title: 'Essay', url: 'https://example.com' }]) },
     scripting: { executeScript: (opts, cb) => cb([{ result: { word: 'susurrus', sentenceExcerpt: 'A whisper.', sourceTitle: 'Essay', sourceUrl: 'https://example.com' } }]) }
@@ -157,13 +169,13 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
       addEventListener: (event, fn) => { if (event === 'DOMContentLoaded') domLoadedCb = fn; }
     },
     window: {
-      addEventListener: () => { },
-      close: () => { }
+      addEventListener: () => {},
+      close: () => {}
     },
     chrome: mockChrome,
     crypto: { randomUUID: () => '12345678-1234-1234-1234-123456789abc' },
     setTimeout: (fn) => fn(),
-    clearTimeout: () => { }
+    clearTimeout: () => {}
   });
 
   vm.runInContext(scriptContent, context);
@@ -227,19 +239,31 @@ test('Popup durable-first outbox queues item before delivery and retains on tran
           cb({ status: 'success', word: msg.word, isDuplicate: false });
         }
       },
-      sendMessage: () => { }
+      sendMessage: (msg, cb) => {
+        if (msg?.type === 'ENQUEUE_OUTBOX') {
+          if (!outboxStorage.outbox_queue.some(e => e.id === msg.payload.id)) {
+            outboxStorage.outbox_queue.push(msg.payload);
+          }
+          if (cb) cb({ success: true });
+        } else if (msg?.type === 'ACK_OUTBOX_ITEM') {
+          outboxStorage.outbox_queue = outboxStorage.outbox_queue.filter(e => e.id !== msg.captureId);
+          if (cb) cb({ success: true });
+        } else if (cb) {
+          cb({ success: true });
+        }
+      }
     },
     storage: {
       local: {
         get: async keys => outboxStorage,
         set: async obj => { Object.assign(outboxStorage, obj); },
-        remove: async () => { }
+        remove: async () => {}
       }
     }
   };
 
   function createElement() {
-    return { value: '', textContent: '', className: '', disabled: false, classList: { add() { }, remove() { } }, addEventListener() { } };
+    return { value: '', textContent: '', className: '', disabled: false, classList: { add() {}, remove() {} }, addEventListener() {} };
   }
   const elements = Object.fromEntries([
     'capture-form', 'input-word', 'input-excerpt', 'input-title', 'input-url', 'input-notes',
@@ -254,8 +278,8 @@ test('Popup durable-first outbox queues item before delivery and retains on tran
   const scriptContent = fs.readFileSync(path.join(EXTENSION_DIR, 'popup/popup.js'), 'utf8');
   const context = vm.createContext({
     URL: globalThis.URL,
-    document: { getElementById: id => elements[id], addEventListener: () => { } },
-    window: { addEventListener: () => { }, close: () => { } },
+    document: { getElementById: id => elements[id], addEventListener: () => {} },
+    window: { addEventListener: () => {}, close: () => {} },
     chrome: mockChrome,
     crypto: { randomUUID: () => 'deadbeef' },
     setTimeout: (fn, delay) => {
@@ -374,4 +398,62 @@ test('Background service worker flushOutbox preserves concurrently appended capt
 
   // Both items delivered in wire order without either being wiped out!
   assert.equal(storage.outbox_queue.length, 0);
+});
+
+test('Serialized outbox mutations prevent data loss during acknowledgement removal with detached snapshots', async () => {
+  const swContent = fs.readFileSync(path.join(EXTENSION_DIR, 'background/serviceWorker.js'), 'utf8');
+
+  // Detached snapshot storage mock — returns a fresh cloned object on every get
+  let storageState = {
+    outbox_queue: [
+      { id: 'cap_A', word: 'aphelion' }
+    ]
+  };
+
+  const mockStorage = {
+    local: {
+      get: async () => JSON.parse(JSON.stringify(storageState)),
+      set: async obj => { Object.assign(storageState, JSON.parse(JSON.stringify(obj))); }
+    }
+  };
+
+  let messageListener = null;
+  const mockChrome = {
+    runtime: {
+      onInstalled: { addListener: () => {} },
+      onMessage: { addListener: fn => { messageListener = fn; } },
+      lastError: null,
+      sendNativeMessage: () => {}
+    },
+    action: {
+      setBadgeBackgroundColor: () => {},
+      setBadgeText: () => {}
+    },
+    contextMenus: {
+      create: () => {},
+      onClicked: { addListener: () => {} }
+    },
+    storage: mockStorage
+  };
+
+  const swContext = vm.createContext({
+    chrome: mockChrome,
+    setTimeout: fn => fn(),
+    clearTimeout: () => {},
+    console
+  });
+  vm.runInContext(swContent, swContext);
+
+  // Both actions fired concurrently with detached snapshots:
+  // 1. Dequeue / acknowledgement of item A
+  // 2. Enqueue of new item B (e.g. from popup experiencing ENRICHMENT_FAILED)
+  const dequeueA = new Promise(resolve => messageListener({ type: 'ACK_OUTBOX_ITEM', captureId: 'cap_A' }, {}, resolve));
+  const enqueueB = new Promise(resolve => messageListener({ type: 'ENQUEUE_OUTBOX', payload: { id: 'cap_B', word: 'perihelion' } }, {}, resolve));
+
+  await Promise.all([dequeueA, enqueueB]);
+
+  // Assert item B was NOT overwritten by A's dequeue write!
+  assert.equal(storageState.outbox_queue.length, 1, 'Stored queue must retain cap_B');
+  assert.equal(storageState.outbox_queue[0].id, 'cap_B');
+  assert.equal(storageState.outbox_queue[0].word, 'perihelion');
 });
