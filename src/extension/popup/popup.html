@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wordloom Capture</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="header-titles">
+        <p class="colophon-eyebrow">Wordloom</p>
+        <h1 class="header-title">Capture Reading</h1>
+      </div>
+      <div id="bridge-status-indicator" class="bridge-status checking" title="Checking desktop bridge…">
+        <span class="status-dot"></span>
+        <span id="bridge-status-text" class="status-label">Checking…</span>
+      </div>
+    </header>
+
+    <div id="draft-banner" class="draft-banner hidden" role="status">
+      <span>Restored unsaved draft</span>
+      <button id="btn-discard-draft" type="button" class="btn-text">Discard</button>
+    </div>
+
+    <form id="capture-form" class="capture-form" autocomplete="off">
+      <div class="form-group">
+        <label for="input-word" class="field-label">Word</label>
+        <input id="input-word" class="input-serif" type="text" maxlength="100" placeholder="e.g. susurrus" required autofocus />
+      </div>
+
+      <div class="form-group">
+        <div class="field-row">
+          <label for="input-excerpt" class="field-label">Reading excerpt</label>
+          <button id="btn-clear-excerpt" type="button" class="btn-text">Remove excerpt</button>
+        </div>
+        <textarea id="input-excerpt" class="input-excerpt" maxlength="300" rows="3" placeholder="Contextual sentence from your reading…"></textarea>
+      </div>
+
+      <div class="form-group">
+        <div class="field-row">
+          <label for="input-title" class="field-label">Source publication</label>
+          <button id="btn-clear-source" type="button" class="btn-text">Remove source</button>
+        </div>
+        <input id="input-title" class="input-sans" type="text" maxlength="200" placeholder="Article, book, or publication" />
+        <input id="input-url" class="input-sans input-url" type="url" maxlength="500" placeholder="https://…" />
+      </div>
+
+      <div class="form-group">
+        <label for="input-notes" class="field-label">Notes <span class="muted">(optional)</span></label>
+        <textarea id="input-notes" class="input-notes" maxlength="2000" rows="2" placeholder="Shelf tag, thought, or personal connection…"></textarea>
+      </div>
+
+      <div class="form-footer">
+        <button id="btn-save" type="submit" class="btn-record">
+          <span class="btn-text-label">Record Word</span>
+        </button>
+        <div id="save-status" class="save-status" aria-live="polite" aria-atomic="true"></div>
+      </div>
+    </form>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+

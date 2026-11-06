@@ -1,0 +1,10 @@
+{
+  "name": "com.wordloom.bridge",
+  "description": "Wordloom Desktop Native Messaging Bridge",
+  "path": "/usr/local/bin/wordloom-bridge",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://<EXTENSION_ID>/"
+  ]
+}
+

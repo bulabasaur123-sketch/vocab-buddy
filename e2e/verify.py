@@ -110,7 +110,7 @@ class ElectronVerification(unittest.TestCase):
         self.assertEqual(len(self.page.evaluate("Object.keys(window.vocabAPI)")), 27)
         from contextlib import closing
         with closing(sqlite3.connect(Path(self.data.name) / "vocab_buddy.db")) as database:
-            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 5)
             rows = database.execute("SELECT word, meanings_json FROM words").fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], word()["word"])

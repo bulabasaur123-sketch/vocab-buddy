@@ -2,8 +2,8 @@
 title: "Wordloom: Browser Extension Capture Companion (FEAT-006)"
 type: prd_and_spec
 feature_code: FEAT-006
-status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-06
 updated_at: 2026-11-06
 ---
@@ -320,8 +320,8 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | :--- | :--- | :--- | :--- |
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
-| **Stage 3: Frontend & Extension UI** | **Gemini** | ▶ Ready for Gemini | Construct MV3 popup UI, typography, design tokens, and keyboard accessibility. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ⏸️ Queued | Audit CSP, test outbox edge cases, run E2E Playwright verification. |
+| **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Codex | Audit CSP, test outbox edge cases, run full verification gate. |
 
 ---
 

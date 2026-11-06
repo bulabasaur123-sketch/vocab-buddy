@@ -8,7 +8,7 @@
     "start": "electron . --no-sandbox",
     "seed": "node scripts/seedShowcase.js",
     "test": "node --test src/test/*.test.js",
-    "lint": "node --check main.js preload.js src/renderer.js src/ui/*.js src/services/*.js src/store/*.js src/db/*.js src/test/*.js",
+    "lint": "node --check main.js preload.js src/renderer.js src/ui/*.js src/services/*.js src/store/*.js src/db/*.js src/test/*.js src/extension/content/*.js src/extension/background/*.js src/extension/popup/*.js scripts/*.js",
     "build": "node --check main.js preload.js src/renderer.js src/ui/*.js"
   },
   "engines": {
