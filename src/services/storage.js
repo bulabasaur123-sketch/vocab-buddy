@@ -202,6 +202,7 @@ class StorageService {
   saveWords(words) {
     validateWords(words);
     this.transaction(() => {
+      const encounters = this.db.prepare('SELECT * FROM reading_encounters').all();
       this.db.exec('DELETE FROM words');
       for (const word of words) {
         this.insert.run(...values(word));
@@ -209,6 +210,9 @@ class StorageService {
         const insertTag = this.db.prepare('INSERT OR IGNORE INTO word_tags VALUES (?, ?)');
         for (const tag of word.tags ?? []) if (normalizeTag(tag)) insertTag.run(word.id, normalizeTag(tag));
       }
+      const retainedIds = new Set(words.map(word => word.id));
+      const restore = this.db.prepare('INSERT INTO reading_encounters VALUES (?, ?, ?)');
+      for (const encounter of encounters) if (retainedIds.has(encounter.word_id)) restore.run(encounter.capture_id, encounter.word_id, encounter.payload_json);
     });
     return true;
   }
@@ -222,6 +226,34 @@ class StorageService {
       const insertTag = this.db.prepare('INSERT OR IGNORE INTO word_tags VALUES (?, ?)');
       for (const tag of word.tags ?? []) if (normalizeTag(tag)) insertTag.run(word.id, normalizeTag(tag));
       return true;
+    });
+  }
+
+  getReadingEncounters(wordId) {
+    return this.db.prepare('SELECT payload_json FROM reading_encounters WHERE word_id = ? ORDER BY rowid').all(wordId).map(row => JSON.parse(row.payload_json));
+  }
+  getCaptureWord(captureId) {
+    const row = this.db.prepare('SELECT word_id FROM reading_encounters WHERE capture_id = ?').get(captureId);
+    return row ? this.selectOne(row.word_id) : null;
+  }
+  saveCapture(payload, enriched) {
+    return this.transaction(() => {
+      const replay = this.getCaptureWord(payload.id);
+      if (replay) return { word: replay, isDuplicate: true };
+      const existing = this.getWordByHeadword(enriched?.word ?? payload.word);
+      const word = existing ?? enriched;
+      if (!word) throw new Error('Word disappeared; retry capture');
+      if (payload.shelfId && !this.db.prepare('SELECT 1 FROM collections WHERE id = ?').get(payload.shelfId)) throw new TypeError('Selected shelf does not exist');
+      if (!existing) {
+        validateWords([word]);
+        if (this.db.prepare('SELECT COUNT(*) AS n FROM words').get().n >= 100000) throw new Error('Library is full');
+        this.insert.run(...values(word));
+      }
+      this.db.prepare('INSERT INTO reading_encounters VALUES (?, ?, ?)').run(payload.id, word.id, JSON.stringify(payload));
+      if (payload.shelfId) this.assignWordToCollection(word.id, payload.shelfId);
+      const tagInsert = this.db.prepare('INSERT OR IGNORE INTO word_tags VALUES (?, ?)');
+      for (const tag of payload.tags ?? []) if (normalizeTag(tag)) tagInsert.run(word.id, normalizeTag(tag));
+      return { word: this.selectOne(word.id), isDuplicate: Boolean(existing) };
     });
   }
 

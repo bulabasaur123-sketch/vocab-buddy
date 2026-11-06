@@ -46,7 +46,7 @@ test('Storage creates nested directories, seeds once, persists payload and empty
   assert.equal(storage.loadWords().length, 1);
   const words = starterWords(now); words[0].bookSource = 'Dune'; assert.equal(storage.saveWords(words), true);
   assert.deepEqual(new StorageService(dir).loadWords(), words);
-  assert.equal(storage.db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(storage.db.prepare('PRAGMA user_version').get().user_version, 5);
   assert.equal(storage.db.prepare('SELECT COUNT(*) AS n FROM words').get().n, 1);
   storage.saveWords([]); assert.deepEqual(new StorageService(dir).loadWords(), []);
 });

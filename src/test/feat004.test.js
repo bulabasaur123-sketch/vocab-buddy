@@ -77,7 +77,7 @@ test('v2 migration preserves words and rolls back schema changes if any migratio
   probe.exec('DROP TABLE collections'); probe.close();
   const upgraded = new StorageService(dir, false);
   try {
-    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 5);
     assert.equal(upgraded.db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
     assert.deepEqual(upgraded.getWords(), words.map(word => ({ ...word, isFavorite: false, tags: [], collections: [] })));
   } finally { upgraded.close(); }

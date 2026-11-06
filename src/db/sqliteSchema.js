@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('node:fs');
 const { DatabaseSync } = require('node:sqlite');
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS words (
   id TEXT PRIMARY KEY NOT NULL,
@@ -65,6 +65,12 @@ function initializeSchema(db) {
     db.exec('ALTER TABLE words ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0 CHECK (is_favorite IN (0, 1))');
   }
   db.exec(`
+    CREATE TABLE IF NOT EXISTS reading_encounters (
+      capture_id TEXT PRIMARY KEY NOT NULL,
+      word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+      payload_json TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_encounters_word ON reading_encounters(word_id);
     CREATE INDEX IF NOT EXISTS idx_words_favorite ON words(is_favorite);
     CREATE TABLE IF NOT EXISTS collections (
       id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL UNIQUE, description TEXT,

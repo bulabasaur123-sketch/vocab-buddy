@@ -32,7 +32,7 @@ test('v3 upgrade preserves data; failed v4 migration rolls back table, indexes a
   probe.exec('DROP TABLE idx_word_assoc_2'); probe.close();
   const upgraded = new StorageService(dir, false);
   try {
-    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 4);
+    assert.equal(upgraded.db.prepare('PRAGMA user_version').get().user_version, 5);
     assert.deepEqual(upgraded.getWords(), before);
     assert.equal(upgraded.db.prepare('PRAGMA foreign_key_list(word_associations)').all().length, 2);
     assert.ok(upgraded.db.prepare('PRAGMA index_list(word_associations)').all().length >= 3);

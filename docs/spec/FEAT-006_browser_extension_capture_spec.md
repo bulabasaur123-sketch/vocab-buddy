@@ -199,6 +199,16 @@ Installed at:
 }
 ```
 
+### Stage 2 implementation notes
+
+- Native host executable: `src/services/nativeBridge.js` (executable Node.js runner; Node 22+ required). Set the manifest `path` to its absolute installed path, or install a launcher at `/usr/local/bin/wordloom-bridge` that invokes it with an absolute Node path. Configure `allowed_origins` with the actual extension ID during Stage 3 installation. Host registration is not performed by the backend.
+- The runner uses the platform Wordloom user-data directory (`$XDG_CONFIG_HOME/wordloom` or `~/.config/wordloom` on Linux, Application Support on macOS, APPDATA on Windows). `WORDLOOM_STORAGE_DIR` overrides this directory and must match the desktop application's user-data directory.
+- Input/output messages are bounded to 64 KiB. Invalid JSON, UTF-8, partial EOF frames, zero lengths, and oversized headers produce `INVALID_PAYLOAD`; oversized headers terminate the connection. Responses remain ordered, and EOF drains complete pending captures before SQLite closes. Only framed responses go to stdout.
+- Text is stripped of HTML tags and control characters and trimmed. Additional backend limits: word 100 characters, capture ID/shelf ID 128, notes 2000, 20 tags of 50 characters each. Blank source URLs are accepted for privacy removal; otherwise only HTTP(S) URLs without credentials are accepted. `capturedAt` requires an ISO UTC timestamp ending in `Z`. Only the normalized headword reaches dictionary enrichment.
+- SQLite schema v5 stores full sanitized captures in `reading_encounters`, keyed by capture ID and associated with the word by foreign key. `StorageService.getReadingEncounters(wordId)` returns chronological encounter payloads, including excerpt, URL, title, timestamp and notes. `bookSource` receives the first capture's title; later captures append encounters without replacing existing word fields or review state. Optional shelves and tags are additive.
+- Replayed capture IDs do not append repeated encounters. A transaction rechecks canonical dictionary headwords before insertion to handle concurrent hosts and lemma resolution. Bulk library saves preserve encounters for retained word IDs; deleting a word cascades its encounters. The existing word-array export format does not include the separate encounter table.
+- Browser draft storage and the browser outbox remain Stage 3 extension responsibilities. The backend provides idempotent ingestion for queue retries.
+
 ### 4.2 Handshake & Message Framing
 - **Input:** The bridge reads standard input. The first 4 bytes specify message length $L$ in little-endian unsigned 32-bit integer (`Uint32Array`), followed by $L$ bytes of JSON string.
 - **Output:** The bridge writes back to standard output with the identical 4-byte length header framing.
@@ -317,3 +327,4 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 
 > [!NOTE]
 > This specification satisfies all guidelines established in [`AGENTS.md`](file:///home/zeto/Desktop/projects/Vocab%20Buddy/AGENTS.md), [`DESIGN.md`](file:///home/zeto/Desktop/projects/Vocab%20Buddy/DESIGN.md), and [[docs/roadmap/cross-platform-next.md|cross-platform-next.md]].
+
