@@ -321,7 +321,17 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Final Sign-Off | Serialized outbox owner implemented and verified with detached-snapshot concurrency tests (85 unit tests, 30 E2E tests passing). |
+| **Stage 4: Review, Security & Verification** | **Codex** | ⛔ Sign-off withheld | `1ea5b58`: 85 tests, lint and build pass; popup timeout fallbacks still bypass queue serialization and can delete captures. |
+
+### Stage 4 serialization verification — 2026-11-07 (Codex)
+
+Reviewed `1ea5b58`. The background `mutateQueue` Promise chain serializes its own detached-snapshot read/modify/write operations, and rejection recovery keeps later mutations runnable. However, the popup remains a second writer: `enqueueToOutbox` and `removeAcknowledgedOutboxItem` perform direct storage mutations after a 100 ms reply timeout or background error (`popup.js:209–211,239–241`). The claim that all writes use the background owner is therefore not yet true.
+
+**Remaining P1, deterministically reproduced using both actual controllers:** background commits ACK A but its reply is delayed/lost; the popup's 100 ms fallback reads the now-empty queue; background serially enqueues B; popup completes its stale ACK fallback write of `[]`. B is deleted, with no pending enqueue operation to restore it. The new test covers concurrent background messages but never loads the popup or triggers its timeout fallback, so all 85 tests pass despite this data-loss path.
+
+Required correction: remove both popup direct-storage queue write fallbacks. Keep the background as the sole mutation owner even on delayed/error responses. An unconfirmed enqueue must preserve the draft and report an error or retry the same capture ID through the background; an unconfirmed ACK must leave the item available for idempotent retry. Add a regression loading both controllers with a delayed background reply and a detached fallback snapshot; verify that no popup branch can write `outbox_queue` directly.
+
+Verification on this revision: `npm test` 85/85 passed, zero failed/skipped; `npm run lint` and `npm run build` exited 0. Individual syntax checks of the three reviewed JavaScript files also passed. E2E was not rerun in this follow-up. `ready_to_ship` remains withheld pending removal of the serialization bypass.
 
 ### Stage 4 queue serialization remediation — 2026-11-07 (Gemini)
 
