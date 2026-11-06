@@ -1,0 +1,319 @@
+---
+title: "Wordloom: Browser Extension Capture Companion (FEAT-006)"
+type: prd_and_spec
+feature_code: FEAT-006
+status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
+created_at: 2026-11-06
+updated_at: 2026-11-06
+---
+
+# Feature Specification: FEAT-006 Browser Extension Capture Companion
+
+> **Feature Code:** FEAT-006  
+> **Active Stage:** Stage 1 Complete — Ready for Backend Implementation  
+> **Lead Architect (Stage 1 & 3):** Gemini  
+> **Backend & Verification Lead (Stage 2 & 4):** Codex  
+> **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
+> **Roadmap Reference:** Step 6 in [[docs/roadmap/cross-platform-next.md|cross-platform-next.md]]  
+
+---
+
+## 1. Vision & Problem Statement
+
+Wordloom’s core promise is **“Your reading, remembered.”** While the Electron desktop application serves as the reader's permanent editorial library and study sanctum, modern reading increasingly takes place in the web browser—long-form literary journalism, essays, digital editions of books, academic papers, and cultural criticism.
+
+Readers currently face friction when encountering unfamiliar words online: they must leave their reading surface, launch or switch to the desktop application, re-type the word, manually copy-paste the sentence excerpt, and remember the book or article title. This disruption breaks reading flow and leads to lost words.
+
+The **Browser Extension Capture Companion** provides a lightweight, distraction-free capture mechanism:
+
+$$\text{Encounter word in text} \longrightarrow \text{Select \& Invoke Capture} \longrightarrow \text{Inspect excerpt \& origin} \longrightarrow \text{Save} \longrightarrow \text{Instantly resume reading}$$
+
+### Non-Goals (Anti-Slop Discipline & Privacy Protections)
+- **No intrusive in-page hover tooltips:** Do NOT inject floating popovers, bouncing icons, or selection popups directly into the host webpage's DOM. In-page DOM pollution breaks site layout, clashes with reader styles, and annoys users.
+- **No persistent background surveillance:** Do NOT run background listeners that log keystrokes, track cursor movements, or inspect clipboard contents.
+- **No broad wildcard host permissions:** Do NOT request `<all_urls>` or `http://*/*` in the extension manifest. Capture must be explicitly user-triggered via `activeTab`.
+- **No excerpt exfiltration to third parties:** Never transmit the reader's surrounding sentence, article title, or URL to external dictionary APIs. External network requests are restricted strictly to the isolated headword.
+- **No silent auto-sync lies:** Do NOT label saved items as "Saved to Wordloom" if the desktop bridge is disconnected. Offline saves must be truthfully labeled as **"Saved locally in browser"**.
+
+---
+
+## 2. Architecture & Runtime Boundaries (Chrome Manifest V3)
+
+The extension is architected as a decoupled companion client operating under strict Manifest V3 boundaries:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        BROWSER RUNTIME (MV3)                           │
+│                                                                        │
+│  ┌───────────────────────┐            ┌─────────────────────────────┐  │
+│  │   Active Tab Page     │            │      Extension Popup        │  │
+│  │  (Host DOM Sandbox)   │            │   (Modern Editorial UI)     │  │
+│  │                       │            │                             │  │
+│  │  [User selects word]  │            │  • Word: [ Ephemeral      ] │  │
+│  │           │           │            │  • Excerpt: [ The faint... ]│  │
+│  │           ▼           │            │  • Source:  [ Paris Review ]│  │
+│  │  Injected Capture     │            │                             │  │
+│  │  Content Script       │            │  [ Preview Origin ]         │  │
+│  │  (activeTab only)     │            │  [ Save to Wordloom ]       │  │
+│  └───────────┬───────────┘            └──────────────┬──────────────┘  │
+│              │ Plain-text capture                    │ Save payload    │
+│              ▼                                       ▼                 │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │             Background Service Worker (MV3)                      │  │
+│  │  • Manages contextMenus & keyboard shortcut commands            │  │
+│  │  • Persists interrupted capture drafts in chrome.storage.local   │  │
+│  │  • Maintains Outbox Queue when desktop app is closed             │  │
+│  └──────────────────────────────────┬───────────────────────────────┘  │
+└─────────────────────────────────────┼──────────────────────────────────┘
+                                      │ Native Messaging JSON stdio
+                                      ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                 DESKTOP ENVIRONMENT (Wordloom)                         │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │       Native Messaging Host Bridge (Node.js executable)          │  │
+│  │       ~/.config/google-chrome/NativeMessagingHosts/             │  │
+│  │       com.wordloom.bridge.json                                   │  │
+│  └──────────────────────────────────┬───────────────────────────────┘  │
+│                                     │ IPC / Storage Service            │
+│                                     ▼                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │     Wordloom SQLite Database (~/.config/wordloom/vocab_buddy.db) │  │
+│  │     Stores word, enriched lexicography, source URL & excerpt     │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Runtime Components
+
+1. **Popup UI (`src/extension/popup/`):**
+   - Fixed dimension: $380\text{px}$ wide, auto height (max $540\text{px}$).
+   - Styled with Wordloom's Modern Literary Minimalism design tokens: warm unbleached ground (`#F7F5F0`), matte white card surface (`#FFFFFF`), carbon ink text (`#1A1A1A`), and bookcloth burgundy accents (`#852B3B`).
+   - Accessible keyboard-first navigation: `Tab`, `Shift+Tab`, `Enter` to save, `Esc` to close.
+2. **On-Demand Content Script (`src/extension/content/captureScript.js`):**
+   - Not permanently injected into all pages.
+   - Programmatically injected on-demand upon user action (`chrome.scripting.executeScript` or `activeTab` message).
+   - Extracts:
+     - Selected text (trimmed headword).
+     - Contextual sentence (bounded excerpt: maximum 300 characters, cleanly expanded to nearest sentence punctuation boundaries `.`, `!`, `?`).
+     - Document metadata: `document.title`, canonical URL (`window.location.href`).
+   - Sanitizes text to pure plain-text: strips HTML tags, control codes, and script injection vectors.
+3. **Background Service Worker (`src/extension/background/serviceWorker.js`):**
+   - Registers context menu item: `"Capture to Wordloom"` (`contexts: ["selection"]`).
+   - Registers global keyboard shortcut: `Alt+Shift+W` (or `Command+Shift+W` on macOS).
+   - Manages draft state in `chrome.storage.local` to survive premature popup dismissals.
+   - Dispatches payloads to the desktop Native Messaging Host bridge.
+4. **Native Messaging Host Bridge (`src/services/nativeBridge.js`):**
+   - Lightweight Node.js bridge adhering to the Chromium Native Messaging standard (32-bit little-endian message length prefix followed by UTF-8 JSON payload over `stdin`/`stdout`).
+   - Interacts directly with Wordloom's `StorageService` to validate, enrich, deduplicate, and persist words into SQLite.
+
+---
+
+## 3. Data Contracts & Schemas
+
+### 3.1 Captured Word Contract (Extension $\to$ Desktop Bridge)
+
+```typescript
+interface CapturePayload {
+  version: 1;
+  id: string;                      // Client-side UUIDv4 (e.g. "cap_01j7...")
+  word: string;                    // Raw captured text (trimmed, e.g. "susurrus")
+  sentenceExcerpt: string;         // Plain-text sentence excerpt (max 300 chars)
+  sourceTitle: string;             // Page document title or book title (max 200 chars)
+  sourceUrl: string;               // Validated http(s) URL (max 500 chars)
+  capturedAt: string;              // ISO 8601 UTC timestamp
+  notes?: string;                  // Optional reader notes
+  shelfId?: string | null;         // Optional pre-selected shelf
+  tags?: string[];                 // Optional tags (e.g. ["web", "essay"])
+}
+```
+
+### 3.2 Bridge Response Contract (Desktop Bridge $\to$ Extension)
+
+```typescript
+type BridgeResponse = 
+  | {
+      status: 'success';
+      wordId: string;
+      word: string;
+      displayWord: string;
+      isDuplicate: boolean;
+      existingBox?: number;        // Leitner box if duplicate (e.g. 2)
+      message: string;
+    }
+  | {
+      status: 'error';
+      code: 'INVALID_PAYLOAD' | 'DB_UNAVAILABLE' | 'ENRICHMENT_FAILED';
+      message: string;
+    };
+```
+
+### 3.3 Draft & Outbox Schema (`chrome.storage.local`)
+
+```typescript
+interface ExtensionLocalStorage {
+  // Ephemeral draft in progress (cleared on save)
+  capture_draft: {
+    word: string;
+    sentenceExcerpt: string;
+    sourceTitle: string;
+    sourceUrl: string;
+    notes: string;
+    updatedAt: number;
+  } | null;
+
+  // Offline queue when desktop app is not connected
+  outbox_queue: Array<CapturePayload>;
+
+  // User preferences
+  extension_settings: {
+    includeExcerptByDefault: boolean;
+    includeUrlByDefault: boolean;
+    defaultTags: string[];
+    theme: 'system' | 'light' | 'dark';
+  };
+}
+```
+
+---
+
+## 4. Native Messaging Transport & Local Outbox Protocol
+
+### 4.1 Native Host Manifest (`com.wordloom.bridge.json`)
+
+Installed at:
+- **Linux:** `~/.config/google-chrome/NativeMessagingHosts/com.wordloom.bridge.json`
+- **macOS:** `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.wordloom.bridge.json`
+- **Windows:** Registry key `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.wordloom.bridge`
+
+```json
+{
+  "name": "com.wordloom.bridge",
+  "description": "Wordloom Desktop Native Messaging Bridge",
+  "path": "/usr/local/bin/wordloom-bridge",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://<CHROME_EXTENSION_ID>/"
+  ]
+}
+```
+
+### 4.2 Handshake & Message Framing
+- **Input:** The bridge reads standard input. The first 4 bytes specify message length $L$ in little-endian unsigned 32-bit integer (`Uint32Array`), followed by $L$ bytes of JSON string.
+- **Output:** The bridge writes back to standard output with the identical 4-byte length header framing.
+- **Timeout & Resilience:** The extension times out after $1500\text{ms}$ if no response is received, gracefully falling back to the local offline outbox.
+
+### 4.3 Fallback & Offline Queueing
+When the desktop application is closed or the Native Messaging host is unreachable:
+1. The extension stores the capture into `chrome.storage.local.outbox_queue`.
+2. The UI displays an honest, reassuring status badge:
+   ```text
+   Saved locally in browser
+   Will sync when Wordloom desktop opens.
+   ```
+3. The extension action icon displays a subtle numeric badge (e.g. `1`, `2`) indicating pending captures.
+4. Next time the extension establishes a connection to the bridge, it flushes the outbox in chronological order.
+
+---
+
+## 5. Interruption Handling & Draft Persistence
+
+Reading is an easily fragmented experience—a reader might trigger capture, begin editing an excerpt, and accidentally click away or switch browser tabs, causing the extension popup to close.
+
+### Draft Lifecycle
+1. **Continuous Draft Sync:**
+   - Any keystroke inside the popup input fields (`word`, `excerpt`, `notes`) debounces ($300\text{ms}$) and writes to `chrome.storage.local.capture_draft`.
+2. **Reopen Recovery:**
+   - When the popup opens, it checks `capture_draft`.
+   - If a non-empty draft exists and was saved less than 24 hours ago:
+     - The draft fields are populated immediately.
+     - A subtle banner appears: *"Restored unsaved capture from 5 minutes ago."* with a clickable *"Discard draft"* action.
+3. **Explicit Completion:**
+   - Clicking **"Record Word"** or pressing `Ctrl+Enter` / `Cmd+Enter` successfully dispatches the payload and clears `capture_draft`.
+
+---
+
+## 6. Duplicate Detection & Non-Destructive Merging
+
+When the reader captures a word that already exists in their Wordloom library:
+- **Never wipe existing progress:** The Leitner box (e.g. Box 3), review history, and interval cadence must NEVER be reset.
+- **Non-Destructive Association:**
+  - The bridge returns `{ status: 'success', isDuplicate: true, existingBox: 3, message: 'Word exists in your library.' }`.
+  - The newly captured sentence excerpt and source title are appended to the word's reading encounters list (`book_source` / provenance notes).
+  - The extension UI confirms: *"Updated reading context for 'serendipity' (Box 3)."*
+
+---
+
+## 7. Gherkin Acceptance Criteria (Behavioral Specifications)
+
+### Scenario 1: Capturing a highlighted word with surrounding context
+```gherkin
+Given the reader is viewing an online article at "https://theparisreview.org/essay"
+  And the article title is "The Art of Fiction"
+  And the text contains "The faint susurrus of wind through the cypress trees was mesmerizing."
+ When the reader highlights the word "susurrus"
+  And presses "Alt+Shift+W"
+ Then the Wordloom capture popup opens
+  And the word input contains "susurrus"
+  And the excerpt input contains "The faint susurrus of wind through the cypress trees was mesmerizing."
+  And the source title input contains "The Art of Fiction"
+  And the source URL input contains "https://theparisreview.org/essay"
+```
+
+### Scenario 2: Privacy controls and excerpt removal before saving
+```gherkin
+Given the capture popup is open with an extracted excerpt and source URL
+ When the reader clicks the "Remove excerpt" button
+ Then the excerpt field is cleared
+  And the payload sent to storage contains an empty sentenceExcerpt
+  And no page context is sent to the dictionary enrichment provider
+```
+
+### Scenario 3: Interrupted capture draft recovery
+```gherkin
+Given the reader has opened the capture popup for "incommensurate"
+  And has typed personal notes "Encountered in economics critique"
+ When the reader accidentally clicks away and closes the popup
+  And reopens the Wordloom extension popup
+ Then the word input displays "incommensurate"
+  And the notes input displays "Encountered in economics critique"
+  And an alert informs the reader "Restored unsaved capture"
+```
+
+### Scenario 4: Desktop offline graceful degradation
+```gherkin
+Given the Wordloom desktop application is closed
+  And the Native Messaging bridge is not running
+ When the reader clicks "Record Word" in the extension popup
+ Then the word is saved into "chrome.storage.local.outbox_queue"
+  And the popup displays "Saved locally in browser (Desktop offline)"
+  And the extension toolbar icon displays a badge "1"
+  And no unhandled runtime error is thrown
+```
+
+### Scenario 5: Duplicate word preserves Leitner review state
+```gherkin
+Given the word "ephemeral" exists in the desktop library in Box 4
+ When the reader captures "ephemeral" from a new web essay
+ Then the desktop bridge appends the new excerpt to the reading sources
+  And the Leitner box for "ephemeral" remains Box 4
+  And the next review date is not altered
+  And the extension confirms "Added new reading excerpt to existing word"
+```
+
+---
+
+## 8. Triad Engineering Protocol Handoff
+
+| Stage | Responsible Agent | Status | Next Milestone |
+| :--- | :--- | :--- | :--- |
+| **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
+| **Stage 2: Backend & Bridge Engine** | **Codex** | ⏳ Pending Start | Implement Native Messaging host script, outbox queue logic, and unit tests. |
+| **Stage 3: Frontend & Extension UI** | **Gemini** | ⏸️ Queued | Construct MV3 popup UI, typography, design tokens, and keyboard accessibility. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ⏸️ Queued | Audit CSP, test outbox edge cases, run E2E Playwright verification. |
+
+---
+
+> [!NOTE]
+> This specification satisfies all guidelines established in [`AGENTS.md`](file:///home/zeto/Desktop/projects/Vocab%20Buddy/AGENTS.md), [`DESIGN.md`](file:///home/zeto/Desktop/projects/Vocab%20Buddy/DESIGN.md), and [[docs/roadmap/cross-platform-next.md|cross-platform-next.md]].
