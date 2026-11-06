@@ -33,8 +33,12 @@ test('Manifest V3 configuration adheres to strict privacy and permissions scope'
   }
 });
 
-test('registerNativeHost enforces explicit 32-character extension ID and rejects wildcards', () => {
-  const hostDir = path.join(require('node:os').homedir(), '.config', 'google-chrome', 'NativeMessagingHosts');
+test('registerNativeHost enforces explicit 32-character extension ID and rejects wildcards', t => {
+  const os = require('node:os');
+  const temporaryHome = fs.mkdtempSync(path.join(os.tmpdir(), 'wordloom-host-test-'));
+  t.after(() => fs.rmSync(temporaryHome, { recursive: true, force: true }));
+  t.mock.method(os, 'homedir', () => temporaryHome);
+  const hostDir = path.join(temporaryHome, '.config', 'google-chrome', 'NativeMessagingHosts');
   const hostFile = path.join(hostDir, 'com.wordloom.bridge.json');
 
   // 1. Rejects missing, empty, or invalid extension IDs
