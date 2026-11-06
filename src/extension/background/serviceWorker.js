@@ -2,10 +2,13 @@
 
 /**
  * Wordloom Background Service Worker (Manifest V3)
- * Handles context menu capture, offline outbox synchronization, and bridge messaging.
+ * Handles context menu capture, 1500ms delivery deadlines, and serialized outbox synchronization.
  */
 
 const NATIVE_HOST = 'com.wordloom.bridge';
+const NATIVE_DEADLINE_MS = 1500;
+
+let isFlushing = false;
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -45,16 +48,31 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-function sendNativeMessage(payload) {
+function sendNativeMessage(payload, timeoutMs = NATIVE_DEADLINE_MS) {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Native message delivery timed out (${timeoutMs}ms deadline exceeded)`));
+      }
+    }, timeoutMs);
+
     try {
       chrome.runtime.sendNativeMessage(NATIVE_HOST, payload, response => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         const err = chrome.runtime.lastError;
         if (err) return reject(new Error(err.message || 'Native host unavailable'));
         resolve(response);
       });
     } catch (e) {
-      reject(e);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(e);
+      }
     }
   });
 }
@@ -69,45 +87,65 @@ async function refreshBadge() {
   }
 }
 
-async function flushOutbox() {
+async function dequeueAcknowledgedId(captureId) {
   const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
-  if (!outbox_queue.length) {
-    await refreshBadge();
-    return { flushed: 0, remaining: 0 };
+  const updated = outbox_queue.filter(entry => entry.id !== captureId);
+  await chrome.storage.local.set({ outbox_queue: updated });
+  await refreshBadge();
+  return updated;
+}
+
+async function flushOutbox() {
+  if (isFlushing) {
+    const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
+    return { flushing: true, remaining: outbox_queue.length };
   }
 
-  const remaining = [];
-  let flushed = 0;
+  isFlushing = true;
+  let flushedCount = 0;
 
-  for (let i = 0; i < outbox_queue.length; i++) {
-    const item = outbox_queue[i];
-    try {
-      const res = await sendNativeMessage(item);
-      if (res && res.status === 'success') {
-        flushed++;
-      } else {
-        remaining.push(item, ...outbox_queue.slice(i + 1));
+  try {
+    while (true) {
+      const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
+      if (!outbox_queue.length) break;
+
+      const currentItem = outbox_queue[0];
+      let res;
+      try {
+        res = await sendNativeMessage(currentItem);
+      } catch {
+        // Native host unavailable or deadline timed out: pause flush
         break;
       }
-    } catch {
-      remaining.push(item, ...outbox_queue.slice(i + 1));
-      break;
+
+      if (res && res.status === 'success') {
+        flushedCount++;
+        // Remove only this acknowledged capture ID, preserving any items appended concurrently
+        await dequeueAcknowledgedId(currentItem.id);
+      } else if (res && res.code === 'INVALID_PAYLOAD') {
+        // Non-retryable input error: dequeue to avoid blocking the remainder of the outbox
+        await dequeueAcknowledgedId(currentItem.id);
+      } else {
+        // Transient error (ENRICHMENT_FAILED, DB_UNAVAILABLE): retain in outbox and halt flush
+        break;
+      }
     }
+  } finally {
+    isFlushing = false;
+    await refreshBadge();
   }
 
-  await chrome.storage.local.set({ outbox_queue: remaining });
-  await refreshBadge();
-  return { flushed, remaining: remaining.length };
+  const { outbox_queue = [] } = await chrome.storage.local.get(['outbox_queue']);
+  return { flushed: flushedCount, remaining: outbox_queue.length };
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'FLUSH_OUTBOX') {
     flushOutbox().then(sendResponse).catch(err => sendResponse({ error: err.message }));
-    return true; // Keep message port open for async response
+    return true; // Keep message channel open for async reply
   }
   if (message?.type === 'REFRESH_BADGE') {
     refreshBadge().then(() => sendResponse({ success: true }));
     return true;
   }
 });
-

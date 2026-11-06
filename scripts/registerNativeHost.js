@@ -4,6 +4,7 @@
 /**
  * Wordloom Native Messaging Host Registration Helper
  * Configures com.wordloom.bridge.json for Chrome / Chromium / Brave / Edge.
+ * Strictly enforces an explicit 32-character Chrome extension ID (letters a-p).
  */
 
 const fs = require('node:fs');
@@ -29,22 +30,33 @@ function getHostDirectories() {
   return [];
 }
 
-function registerHost(extensionId) {
+function registerHost(rawExtensionId) {
+  const extensionId = (rawExtensionId || '').trim().toLowerCase();
+
+  // Chrome extension IDs are strictly 32 characters in length using base16 chars a-p.
+  // Wildcards are rejected by Chrome for native messaging hosts.
+  if (!extensionId || !/^[a-p]{32}$/.test(extensionId)) {
+    console.error('Error: An explicit 32-character Chrome extension ID (letters a–p) is required.');
+    console.error('Usage: node scripts/registerNativeHost.js <32-char-extension-id>');
+    console.error('Example: node scripts/registerNativeHost.js knkghkmobmclocjkggnllcfgnckjdmph');
+    process.exit(1);
+  }
+
   const bridgeScript = path.resolve(__dirname, '../src/services/nativeBridge.js');
-  // Make sure bridge script is executable
   try {
     fs.chmodSync(bridgeScript, 0o755);
   } catch {
-    // Non-fatal
+    // Non-fatal if filesystem does not support chmod
   }
 
-  // Create a launcher script or wrapper if direct node invocation is needed
   const manifest = {
     name: 'com.wordloom.bridge',
     description: 'Wordloom Desktop Native Messaging Bridge',
     path: bridgeScript,
     type: 'stdio',
-    allowed_origins: extensionId ? [`chrome-extension://${extensionId}/`] : ['chrome-extension://*/*']
+    allowed_origins: [
+      `chrome-extension://${extensionId}/`
+    ]
   };
 
   const targetDirs = getHostDirectories();
@@ -57,14 +69,21 @@ function registerHost(extensionId) {
       fs.writeFileSync(targetFile, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
       console.log(`Registered native host in: ${targetFile}`);
       installedCount++;
-    } catch (err) {
-      // Skip directories that cannot be created
+    } catch {
+      // Skip directories that cannot be created or accessed
     }
   }
 
-  console.log(`Native host registered across ${installedCount} browser profile locations.`);
+  if (installedCount === 0) {
+    console.error('Error: Could not register native host in any browser profile directory.');
+    process.exit(1);
+  }
+
+  console.log(`Native host registered across ${installedCount} browser profile locations for extension: ${extensionId}`);
 }
 
-const extId = process.argv[2] || '';
-registerHost(extId);
+if (require.main === module) {
+  registerHost(process.argv[2]);
+}
 
+module.exports = { registerHost, getHostDirectories };

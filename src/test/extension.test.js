@@ -6,8 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { validateCapture } = require('../services/nativeBridge');
+const { registerHost } = require('../../scripts/registerNativeHost');
 
 const EXTENSION_DIR = path.join(__dirname, '../extension');
+const tick = () => new Promise(resolve => setImmediate(resolve));
 
 test('Manifest V3 configuration adheres to strict privacy and permissions scope', () => {
   const manifestPath = path.join(EXTENSION_DIR, 'manifest.json');
@@ -29,6 +31,38 @@ test('Manifest V3 configuration adheres to strict privacy and permissions scope'
     assert.ok(fs.existsSync(iconPath), `Icon ${size} must exist at ${iconPath}`);
     assert.ok(fs.statSync(iconPath).size > 50, `Icon ${size} must be a valid non-empty file`);
   }
+});
+
+test('registerNativeHost enforces explicit 32-character extension ID and rejects wildcards', () => {
+  const hostDir = path.join(require('node:os').homedir(), '.config', 'google-chrome', 'NativeMessagingHosts');
+  const hostFile = path.join(hostDir, 'com.wordloom.bridge.json');
+
+  // 1. Rejects missing, empty, or invalid extension IDs
+  for (const invalid of ['', '   ', 'abc', '*', 'chrome-extension://*/*', '12345678901234567890123456789012', 'ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEF']) {
+    let exited = false;
+    const origExit = process.exit;
+    const origErr = console.error;
+    console.error = () => {};
+    process.exit = () => { exited = true; throw new Error('EXIT'); };
+    try {
+      registerHost(invalid);
+    } catch (e) {
+      assert.equal(e.message, 'EXIT');
+    } finally {
+      process.exit = origExit;
+      console.error = origErr;
+    }
+    assert.ok(exited, `Expected exit for invalid extension ID: ${invalid}`);
+  }
+
+  // 2. Accepts valid 32-character ID (letters a-p) and configures exact allowed_origins
+  const validId = 'abcdefghijklmnopabcdefghijklmnop';
+  registerHost(validId);
+
+  assert.ok(fs.existsSync(hostFile));
+  const written = JSON.parse(fs.readFileSync(hostFile, 'utf8'));
+  assert.equal(written.name, 'com.wordloom.bridge');
+  assert.deepEqual(written.allowed_origins, [`chrome-extension://${validId}/`]);
 });
 
 test('Content script sanitizes HTML, strips URL credentials, and bounds sentence excerpts', () => {
@@ -81,7 +115,7 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
       },
       addEventListener(event, fn) { listeners[event] = listeners[event] || []; listeners[event].push(fn); },
       trigger(event, data) { for (const fn of listeners[event] || []) fn(data); },
-      focus() {}
+      focus() { }
     };
   }
 
@@ -104,7 +138,7 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
     runtime: {
       lastError: null,
       sendNativeMessage: (host, msg, cb) => cb({ status: 'success', word: 'susurrus', isDuplicate: false }),
-      sendMessage: () => {}
+      sendMessage: () => { }
     },
     tabs: { query: (opts, cb) => cb([{ id: 1, title: 'Essay', url: 'https://example.com' }]) },
     scripting: { executeScript: (opts, cb) => cb([{ result: { word: 'susurrus', sentenceExcerpt: 'A whisper.', sourceTitle: 'Essay', sourceUrl: 'https://example.com' } }]) }
@@ -119,13 +153,13 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
       addEventListener: (event, fn) => { if (event === 'DOMContentLoaded') domLoadedCb = fn; }
     },
     window: {
-      addEventListener: () => {},
-      close: () => {}
+      addEventListener: () => { },
+      close: () => { }
     },
     chrome: mockChrome,
     crypto: { randomUUID: () => '12345678-1234-1234-1234-123456789abc' },
     setTimeout: (fn) => fn(),
-    clearTimeout: () => {}
+    clearTimeout: () => { }
   });
 
   vm.runInContext(scriptContent, context);
@@ -156,19 +190,6 @@ test('Popup controller manages draft persistence, discard, and privacy clear act
 });
 
 test('Popup saves via Native Messaging Bridge and validates payload against schema', async () => {
-  let bridgeCalledWith = null;
-  const mockChrome = {
-    runtime: {
-      lastError: null,
-      sendNativeMessage: (host, msg, cb) => {
-        bridgeCalledWith = msg;
-        cb({ status: 'success', word: msg.word, isDuplicate: false });
-      },
-      sendMessage: () => {}
-    },
-    storage: { local: { get: async () => ({}), set: async () => {}, remove: async () => {} } }
-  };
-
   const payload = {
     version: 1,
     id: 'cap_abc123',
@@ -186,25 +207,35 @@ test('Popup saves via Native Messaging Bridge and validates payload against sche
   assert.equal(validated.sourceTitle, 'Literary Journal');
 });
 
-test('Popup falls back to outbox queue and displays honest status when desktop is offline', async () => {
+test('Popup durable-first outbox queues item before delivery and retains on transient failures or 1500ms timeout', async () => {
   const outboxStorage = { outbox_queue: [] };
+  let simulatedBridgeBehavior = 'withhold_timeout'; // 'withhold_timeout' | 'enrichment_failed' | 'success'
+
   const mockChrome = {
     runtime: {
-      lastError: { message: 'Specified native messaging host not found.' },
-      sendNativeMessage: (host, msg, cb) => cb(null),
-      sendMessage: () => {}
+      lastError: null,
+      sendNativeMessage: (host, msg, cb) => {
+        if (simulatedBridgeBehavior === 'withhold_timeout') {
+          // Do not invoke cb immediately to test deadline
+        } else if (simulatedBridgeBehavior === 'enrichment_failed') {
+          cb({ status: 'error', code: 'ENRICHMENT_FAILED', message: 'Dictionary timeout' });
+        } else {
+          cb({ status: 'success', word: msg.word, isDuplicate: false });
+        }
+      },
+      sendMessage: () => { }
     },
     storage: {
       local: {
         get: async keys => outboxStorage,
         set: async obj => { Object.assign(outboxStorage, obj); },
-        remove: async () => {}
+        remove: async () => { }
       }
     }
   };
 
   function createElement() {
-    return { value: '', textContent: '', className: '', disabled: false, classList: { add() {}, remove() {} }, addEventListener() {} };
+    return { value: '', textContent: '', className: '', disabled: false, classList: { add() { }, remove() { } }, addEventListener() { } };
   }
   const elements = Object.fromEntries([
     'capture-form', 'input-word', 'input-excerpt', 'input-title', 'input-url', 'input-notes',
@@ -215,23 +246,128 @@ test('Popup falls back to outbox queue and displays honest status when desktop i
   elements['input-word'].value = 'ineffable';
   elements['input-excerpt'].value = 'Too great to be expressed in words.';
 
+  let activeTimers = [];
   const scriptContent = fs.readFileSync(path.join(EXTENSION_DIR, 'popup/popup.js'), 'utf8');
   const context = vm.createContext({
     URL: globalThis.URL,
-    document: { getElementById: id => elements[id], addEventListener: () => {} },
-    window: { addEventListener: () => {}, close: () => {} },
+    document: { getElementById: id => elements[id], addEventListener: () => { } },
+    window: { addEventListener: () => { }, close: () => { } },
     chrome: mockChrome,
-    crypto: { randomUUID: () => 'abcd' },
-    setTimeout: fn => fn(),
-    clearTimeout: () => {}
+    crypto: { randomUUID: () => 'deadbeef' },
+    setTimeout: (fn, delay) => {
+      const timer = { fn, delay };
+      activeTimers.push(timer);
+      return timer;
+    },
+    clearTimeout: timer => {
+      activeTimers = activeTimers.filter(t => t !== timer);
+    }
   });
 
   vm.runInContext(scriptContent, context);
-  await vm.runInContext('handleSave();', context);
 
-  // Assert item was safely queued into local outbox
+  // Case 1: Deadline timeout (withheld bridge response)
+  const savePromise = vm.runInContext('handleSave();', context);
+  await tick(); // Allow microtasks to execute up to native message send
+
+  // Item must ALREADY be durably in outbox before wire response arrives!
   assert.equal(outboxStorage.outbox_queue.length, 1);
   assert.equal(outboxStorage.outbox_queue[0].word, 'ineffable');
+
+  // Trigger 1500ms timeout
+  const deadlineTimer = activeTimers.find(t => t.delay === 1500);
+  assert.ok(deadlineTimer, '1500ms deadline timer must be scheduled');
+  deadlineTimer.fn();
+  await savePromise;
+
+  assert.equal(outboxStorage.outbox_queue.length, 1, 'Timed-out item must remain in outbox');
   assert.equal(elements['save-status'].className, 'save-status warning');
   assert.match(elements['save-status'].textContent, /Saved locally in browser/);
+
+  // Case 2: Transient ENRICHMENT_FAILED response retains item in outbox
+  simulatedBridgeBehavior = 'enrichment_failed';
+  await vm.runInContext('handleSave();', context);
+  assert.equal(outboxStorage.outbox_queue.length, 1, 'Transient failure must retain item in outbox');
+  assert.equal(elements['save-status'].className, 'save-status warning');
+
+  // Case 3: Successful delivery removes acknowledged item
+  simulatedBridgeBehavior = 'success';
+  await vm.runInContext('handleSave();', context);
+  assert.equal(outboxStorage.outbox_queue.length, 0, 'Successful delivery must remove item from outbox');
+  assert.equal(elements['save-status'].className, 'save-status success');
+});
+
+test('Background service worker flushOutbox preserves concurrently appended captures', async () => {
+  const scriptContent = fs.readFileSync(path.join(EXTENSION_DIR, 'background/serviceWorker.js'), 'utf8');
+
+  let storage = {
+    outbox_queue: [
+      { id: 'cap_A', word: 'aphelion' }
+    ]
+  };
+
+  let bridgeDeliveryPending = null;
+  const mockChrome = {
+    runtime: {
+      onInstalled: { addListener: () => {} },
+      onMessage: { addListener: () => {} },
+      lastError: null,
+      sendNativeMessage: (host, payload, cb) => {
+        bridgeDeliveryPending = cb;
+      }
+    },
+    action: {
+      setBadgeBackgroundColor: () => {},
+      setBadgeText: () => {}
+    },
+    contextMenus: {
+      create: () => {},
+      onClicked: { addListener: () => {} }
+    },
+    storage: {
+      local: {
+        get: async keys => storage,
+        set: async obj => { Object.assign(storage, obj); }
+      }
+    }
+  };
+
+  let activeTimers = [];
+  const context = vm.createContext({
+    chrome: mockChrome,
+    setTimeout: (fn, delay) => {
+      const timer = { fn, delay };
+      activeTimers.push(timer);
+      return timer;
+    },
+    clearTimeout: timer => {
+      activeTimers = activeTimers.filter(t => t !== timer);
+    },
+    console
+  });
+
+  vm.runInContext(scriptContent, context);
+
+  // 1. Trigger flushOutbox()
+  const flushPromise = vm.runInContext('flushOutbox();', context);
+  await tick(); // Allow microtasks to run up to sendNativeMessage
+
+  assert.ok(bridgeDeliveryPending, 'Delivery of cap_A must be in flight');
+
+  // 2. Concurrently append item B to outbox while delivery of A is in flight!
+  storage.outbox_queue.push({ id: 'cap_B', word: 'perihelion' });
+  assert.equal(storage.outbox_queue.length, 2);
+
+  // 3. Acknowledge delivery of item A
+  bridgeDeliveryPending({ status: 'success', word: 'aphelion' });
+  await tick();
+
+  // 4. Acknowledging A will cause flushOutbox to proceed to item B!
+  assert.ok(bridgeDeliveryPending, 'Delivery of cap_B should now be processed');
+  bridgeDeliveryPending({ status: 'success', word: 'perihelion' });
+
+  await flushPromise;
+
+  // Both items delivered in wire order without either being wiped out!
+  assert.equal(storage.outbox_queue.length, 0);
 });

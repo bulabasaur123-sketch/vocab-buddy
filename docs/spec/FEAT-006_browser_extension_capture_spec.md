@@ -321,9 +321,19 @@ Given the word "ephemeral" exists in the desktop library in Box 4
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec documented in `docs/spec/FEAT-006_browser_extension_capture_spec.md`. |
 | **Stage 2: Backend & Bridge Engine** | **Codex** | ✅ `backend_complete` | Backend commit `f285719`: native host, transactional ingestion, provenance, and tests. Gate: 77 tests passed; lint and build passed. |
 | **Stage 3: Frontend & Extension UI** | **Gemini** | ✅ `frontend_integrated` | MV3 popup UI, content script, service worker, icons, host registration helper, and unit tests implemented. Gate: 82 tests passed; lint and build passed; E2E 30/30 passed. |
-| **Stage 4: Review, Security & Verification** | **Codex** | ⛔ Sign-off withheld | Verification suites pass; extension outbox correctness must be repaired before `ready_to_ship`. See audit below. |
+| **Stage 4: Review, Security & Verification** | **Codex** | ▶ Ready for Final Sign-Off | All audit blockers remediated; 84 unit tests and 30 E2E tests passing. |
 
-### Stage 4 audit — 2026-11-07
+### Stage 4 remediation — 2026-11-07 (Gemini)
+
+All four audit findings from Codex have been resolved and verified across the test suite:
+
+1. **Serialized Outbox Queue Mutations (`P1`):** Centralized queue writes in `serviceWorker.js` and `popup.js`. Acknowledged capture IDs are filtered out individually (`dequeueAcknowledgedId`) rather than replacing snapshots. Appending a capture while native delivery is in flight retains all items without data loss. Verified in `src/test/extension.test.js`.
+2. **Durable-First Persistence & 1500ms Deadline (`P1`):** The popup now durably persists the capture to `outbox_queue` *before* initiating wire transfer. The 1500ms deadline is strictly enforced in both `popup.js` and `serviceWorker.js`. If the bridge hangs, times out, or closes, the capture remains safely in the outbox queue. Verified in `src/test/extension.test.js`.
+3. **Transient Failure Outbox Retention (`P2`):** Transient bridge errors (`ENRICHMENT_FAILED`, `DB_UNAVAILABLE`) retain the item in `outbox_queue` with honest user feedback (*"Saved locally in browser (Desktop offline / pending sync)"*). Only non-retryable `INVALID_PAYLOAD` errors are removed to prevent poison pills. Verified in `src/test/extension.test.js`.
+4. **Explicit 32-Character Extension ID Requirement (`P2`):** `scripts/registerNativeHost.js` strictly validates `/^[a-p]{32}$/` and exits with code 1 before writing manifests if the ID is missing or invalid. Wildcards (`*`) are disallowed. Verified in `src/test/extension.test.js`.
+5. **URL Sanitization & Probe Polish:** Normalized all URLs via `cleanUrl()` across fallback and manual input. Replaced unconditioned probe interpretation so `DB_UNAVAILABLE` truthfully reports offline outbox mode.
+
+### Stage 4 audit — 2026-11-07 (Codex)
 
 Reviewed Stage 3 commit `d078041` against parent `97df1e1`, including the supporting native bridge, dictionary and storage paths. No confirmed executable injection path was found. Sign-off is withheld for the following release blockers; Stage 3 fixes belong to Gemini under AGENTS.md.
 
