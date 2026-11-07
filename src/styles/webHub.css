@@ -1,0 +1,269 @@
+/* ==========================================================================
+   Wordloom — Web Hub & Peer Feedback Stylesheet
+   Modern Literary Minimalism (DESIGN.md)
+   ========================================================================== */
+
+/* 1. Persistent Web Preview Banner */
+.web-preview-banner {
+  background-color: var(--bg-surface-subtle, #F0EDE6);
+  border-bottom: 1px solid var(--border-rule, #E5E0D5);
+  padding: 0.625rem 1.25rem;
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #5A5A58);
+  position: relative;
+  z-index: 50;
+}
+
+.web-banner-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.web-banner-colophon {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.web-banner-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  background-color: var(--accent-subtle, rgba(133, 43, 59, 0.08));
+  color: var(--text-accent, #852B3B);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: var(--radius-xs, 3px);
+  border: 1px solid rgba(133, 43, 59, 0.2);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.web-banner-text {
+  color: var(--text-primary, #1A1A1A);
+  font-weight: 450;
+}
+
+.web-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-banner-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background-color: var(--bg-surface, #FFFFFF);
+  border: 1px solid var(--border-rule, #E5E0D5);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-primary, #1A1A1A);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast, 140ms ease);
+}
+
+.btn-banner-action:hover {
+  border-color: var(--text-primary, #1A1A1A);
+  background-color: var(--bg-surface, #FFFFFF);
+  color: var(--text-primary, #1A1A1A);
+}
+
+.btn-banner-accent {
+  background-color: var(--text-accent, #852B3B);
+  border-color: var(--text-accent, #852B3B);
+  color: #FFFFFF !important;
+}
+
+.btn-banner-accent:hover {
+  background-color: #6E2230;
+  border-color: #6E2230;
+}
+
+/* 2. Floating Feedback Button (Discreet Pill) */
+.btn-floating-feedback {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  background-color: var(--bg-surface, #FFFFFF);
+  border: 1px solid var(--border-strong, #CFC9BD);
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary, #1A1A1A);
+  cursor: pointer;
+  transition: all var(--transition-fast, 140ms ease);
+}
+
+.btn-floating-feedback:hover {
+  border-color: var(--text-accent, #852B3B);
+  color: var(--text-accent, #852B3B);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* 3. In-App Peer Feedback Modal */
+.feedback-folio {
+  max-width: 540px;
+  width: 90%;
+}
+
+.category-pills {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.pill-radio {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.pill-radio input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pill-radio span {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border-rule, #E5E0D5);
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #5A5A58);
+  background-color: var(--bg-surface, #FFFFFF);
+  transition: all var(--transition-fast, 140ms ease);
+}
+
+.pill-radio input:checked + span {
+  border-color: var(--text-accent, #852B3B);
+  background-color: var(--accent-subtle, rgba(133, 43, 59, 0.08));
+  color: var(--text-accent, #852B3B);
+  font-weight: 500;
+}
+
+.pill-radio:hover span {
+  border-color: var(--border-strong, #CFC9BD);
+}
+
+/* Star Rating */
+.star-rating {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.star-btn {
+  background: none;
+  border: 1px solid var(--border-rule, #E5E0D5);
+  border-radius: var(--radius-xs, 3px);
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: var(--border-strong, #CFC9BD);
+  cursor: pointer;
+  transition: all var(--transition-fast, 140ms ease);
+}
+
+.star-btn:hover,
+.star-btn.active {
+  color: #C87D32;
+  border-color: #C87D32;
+  background-color: rgba(200, 125, 50, 0.06);
+}
+
+.feedback-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+
+/* 4. Extension Guide Steps */
+.ext-guide-folio {
+  max-width: 580px;
+  width: 90%;
+}
+
+.editorial-guide-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.editorial-guide-steps li {
+  padding-left: 0.5rem;
+  border-left: 2px solid var(--border-rule, #E5E0D5);
+}
+
+.editorial-guide-steps strong {
+  display: block;
+  font-size: 0.9375rem;
+  color: var(--text-primary, #1A1A1A);
+  margin-bottom: 0.25rem;
+}
+
+.editorial-guide-steps p {
+  margin: 0;
+  font-size: 0.84375rem;
+  color: var(--text-secondary, #5A5A58);
+}
+
+.editorial-guide-steps code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8125rem;
+  background-color: var(--bg-surface-subtle, #F0EDE6);
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-xs, 3px);
+  color: var(--text-primary, #1A1A1A);
+}
+
+/* Mobile & Tablet Adjustments */
+@media (max-width: 768px) {
+  .web-banner-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+  }
+  
+  .web-banner-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .btn-floating-feedback {
+    bottom: 1rem;
+    right: 1rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
+

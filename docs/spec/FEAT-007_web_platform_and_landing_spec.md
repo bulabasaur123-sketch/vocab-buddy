@@ -2,8 +2,8 @@
 title: "Wordloom: Web Platform, Cloudflare Deployment & Peer Feedback Companion (FEAT-007)"
 type: prd_and_spec
 feature_code: FEAT-007
-status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: gemini # gemini | codex | human
+status: frontend_integrated # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: codex # gemini | codex | human
 created_at: 2026-11-07
 updated_at: 2026-11-07
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-07
 # Feature Specification: FEAT-007 Web Platform, Cloudflare Deployment & Peer Feedback
 
 > **Feature Code:** FEAT-007  
-> **Active Stage:** Stage 2 Complete — Ready for Frontend Integration
+> **Active Stage:** Stage 3 Complete — Ready for Verification & Final Sign-Off
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -256,9 +256,59 @@ Feature: Web Platform and Peer Feedback Companion (FEAT-007)
 | Stage | Responsible Agent | Status | Next Milestone |
 | :--- | :--- | :--- | :--- |
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec authored in `docs/spec/FEAT-007_web_platform_and_landing_spec.md`. |
-| **Stage 2: Web Adapter & Storage Engine** | **Codex** | ✅ `backend_complete` | Implementation commit `62c2942`: browser adapter and 15 test cases; 101/101 tests, lint and build pass. Native Chromium adapter smoke passed. Ready for Gemini Stage 3. |
-| **Stage 3: Frontend UI, Feedback & Landing** | **Gemini** | ⏳ Pending Stage 3 | Mount `webAdapter.js` in `index.html`, build Feedback Modal, Web Preview Banner, and Extension Guide modal. Test responsive layouts and 0-CLS. |
+| **Stage 2: Web Adapter & Storage Engine** | **Codex** | ✅ `backend_complete` | Implementation commit `62c2942`: browser adapter and 15 test cases; 101/101 tests, lint and build pass. Native Chromium adapter smoke passed. |
+| **Stage 3: Frontend UI, Feedback & Landing** | **Gemini** | ✅ `frontend_integrated` | Mounted `webAdapter.js` in `index.html`, implemented `webHub.js` (banner, feedback modal, extension guide modal, sample reset), Cloudflare `_headers`, `_redirects`, and `functions/api/feedback.js`. Gate: 104/104 unit tests, lint/build exit 0, 30/30 Playwright E2E passed. |
 | **Stage 4: Review, Security & Verification** | **Codex** | ⏳ Pending Stage 4 | Audit CSP headers, verify input sanitization, execute full test suite + E2E verification, and approve `ready_to_ship`. |
+
+---
+
+### Stage 3 frontend integration (Gemini)
+
+Implemented all Stage 3 web integration and reviewer hub components:
+
+1. **Facade & Web Hub Mounting (`index.html`):**
+   - Mounted `src/services/webAdapter.js` before UI scripts, establishing the polymorphic facade when running in browser mode without touching Electron.
+   - Updated `meta http-equiv="Content-Security-Policy"` with `connect-src` allowing `https://api.dictionaryapi.dev`, `https://en.wiktionary.org`, `https://wordloom.pages.dev`, and `https://*.pages.dev`.
+   - Loaded `src/styles/webHub.css` and `src/ui/webHub.js`.
+
+2. **Web Preview Banner (`#web-preview-banner`):**
+   - Placed at top of `<main id="main-content">` with zero CLS impact. Automatically activated in standard browsers (`isElectron === false`) and suppressed in Electron desktop.
+   - Action buttons: *Share Feedback* (triggers modal), *Install Extension* (triggers guide modal), *Reset Sample* (restores 5 pristine showcase cards), and *Desktop App* (links to GitHub Releases).
+
+3. **In-App Peer Feedback System (`#feedback-modal` & `#btn-floating-feedback`):**
+   - Built editorial modal dialog with topic pills (`Impression`, `Design & Typography`, `Feature Idea`, `Bug Report`), 1–5 star rating buttons, and bounded comment input.
+   - Added floating discreet pill in bottom right for continuous reviewer access.
+   - Dual-mode submission: posts to `/api/feedback` edge endpoint and reliably mirrors drafts in `localStorage['wordloom_feedback_drafts']`.
+
+4. **Browser Extension Guide Modal (`#extension-guide-modal`):**
+   - Clean step-by-step instructions for peers on enabling Developer mode in Chrome/Brave/Edge and loading `src/extension` unpacked, with repository zip download link.
+
+5. **Cloudflare Deployment Assets:**
+   - Authored `_headers` configuring production security headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, strict CSP).
+   - Authored `_redirects` routing SPA paths to `/index.html`.
+   - Created Cloudflare Pages Function `functions/api/feedback.js` parsing and logging `POST /api/feedback`.
+
+6. **Verification Gate:**
+   - `npm test`: **104/104 passed** (3 new webHub tests, 15 webAdapter tests, 86 legacy tests).
+   - `npm run lint` & `npm run build`: **0 errors**.
+   - `e2e/verify.py`: **30/30 Playwright scenarios passed**.
+
+---
+
+### Handoff Prompt for Codex (Stage 4 Final Sign-off)
+
+```text
+@Codex Stage 4 Verification & Sign-off for FEAT-007 (Web Platform & Cloudflare Deployment):
+
+Gemini has completed Stage 3 frontend integration:
+1. Mounted src/services/webAdapter.js and src/ui/webHub.js in index.html.
+2. Built Web Preview banner, In-App Peer Feedback modal with 1-5 star rating and category pills, Extension Guide modal, and floating feedback button.
+3. Configured Cloudflare Pages assets: _headers (CSP), _redirects (SPA fallback), and functions/api/feedback.js (Edge function).
+4. All styles in src/styles/webHub.css follow Modern Literary Minimalism (DESIGN.md) with 0-CLS.
+5. Gate verification: npm test (104/104 pass), npm run lint & build (0 errors), e2e/verify.py (30/30 pass).
+
+Please review the implementation, audit security/CSP headers, run verification in your environment, update status in docs/spec/FEAT-007_web_platform_and_landing_spec.md to ready_to_ship, sync Obsidian, and commit.
+```
 
 ---
 

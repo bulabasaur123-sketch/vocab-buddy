@@ -1,0 +1,6 @@
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' blob: data: https: http:; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; connect-src 'self' https://api.dictionaryapi.dev https://en.wiktionary.org https://wordloom.pages.dev https://*.pages.dev;
+

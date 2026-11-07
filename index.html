@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' data: https: http:; img-src 'self' data: https:; script-src 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; media-src 'self' blob: data: https: http:; img-src 'self' data: https:; script-src 'self'; connect-src 'self' https://api.dictionaryapi.dev https://en.wiktionary.org https://wordloom.pages.dev https://*.pages.dev;">
   <title>Wordloom — Personal Library</title>
 
   <!-- Typography: Editorial Serif (Newsreader), Grotesque Sans (Inter), Technical Monospace (JetBrains Mono) -->
@@ -13,6 +13,7 @@
 
   <link rel="stylesheet" href="src/styles/main.css">
   <link rel="stylesheet" href="src/styles/desktop.css">
+  <link rel="stylesheet" href="src/styles/webHub.css">
 </head>
 <body class="theme-paper">
   <div class="site-wrapper">
@@ -33,6 +34,35 @@
     </aside>
     <!-- Main Content Area -->
     <main id="main-content" class="content-body" tabindex="-1">
+
+      <!-- Web Preview & Reviewer Banner (Active in Web Mode) -->
+      <aside id="web-preview-banner" class="web-preview-banner hidden" aria-label="Web environment preview notices">
+        <div class="web-banner-inner">
+          <div class="web-banner-colophon">
+            <span class="web-banner-badge">Editorial Web Preview</span>
+            <span class="web-banner-text">Exploring a live reading sample. Changes persist in your browser.</span>
+          </div>
+          <div class="web-banner-actions">
+            <button type="button" id="btn-web-feedback" class="btn-banner-action btn-banner-accent">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Share Feedback
+            </button>
+            <button type="button" id="btn-web-extension" class="btn-banner-action">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              Install Extension
+            </button>
+            <button type="button" id="btn-web-reset" class="btn-banner-action" title="Restore sample showcase words">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Reset Sample
+            </button>
+            <a href="https://github.com/bulabasaur123-sketch/vocab-buddy/releases" target="_blank" rel="noopener noreferrer" class="btn-banner-action" title="Download Wordloom for Desktop">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              Desktop App
+            </a>
+          </div>
+        </div>
+      </aside>
+
       <div id="app-status" class="app-status hidden" role="status" aria-live="polite"></div>
 
       <!-- VIEW 1: Library -->
@@ -659,10 +689,121 @@
       </div>
     </div>
 
+    <!-- In-App Peer Feedback Modal -->
+    <div id="feedback-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title">
+      <div class="modal-folio feedback-folio">
+        <header class="modal-folio-header">
+          <div>
+            <p class="eyebrow">Peer Review & Critique</p>
+            <h2 id="feedback-modal-title" class="modal-title-serif">Share Your Thoughts</h2>
+            <p class="modal-source-text">What felt natural? What was confusing or missing?</p>
+          </div>
+          <button type="button" id="feedback-modal-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
+        </header>
+
+        <form id="feedback-form" class="feedback-form">
+          <div class="modal-folio-body">
+            <!-- Category Selector -->
+            <div class="field-cluster">
+              <label class="field-label">Topic / Category</label>
+              <div class="category-pills" role="radiogroup" aria-label="Feedback category">
+                <label class="pill-radio"><input type="radio" name="feedback-category" value="impression" checked><span>Impression</span></label>
+                <label class="pill-radio"><input type="radio" name="feedback-category" value="design"><span>Design & Typography</span></label>
+                <label class="pill-radio"><input type="radio" name="feedback-category" value="feature"><span>Feature Idea</span></label>
+                <label class="pill-radio"><input type="radio" name="feedback-category" value="bug"><span>Bug Report</span></label>
+              </div>
+            </div>
+
+            <!-- Rating Stars -->
+            <div class="field-cluster" style="margin-top: 1.25rem;">
+              <label class="field-label" id="rating-label">Overall Experience</label>
+              <div class="star-rating" role="radiogroup" aria-labelledby="rating-label">
+                <button type="button" class="star-btn" data-value="1" aria-label="1 star">★</button>
+                <button type="button" class="star-btn" data-value="2" aria-label="2 stars">★</button>
+                <button type="button" class="star-btn" data-value="3" aria-label="3 stars">★</button>
+                <button type="button" class="star-btn" data-value="4" aria-label="4 stars">★</button>
+                <button type="button" class="star-btn active" data-value="5" aria-label="5 stars">★</button>
+              </div>
+            </div>
+
+            <!-- Comments Textarea -->
+            <div class="field-cluster" style="margin-top: 1.25rem;">
+              <label for="feedback-comments" class="field-label">Your Observations</label>
+              <textarea id="feedback-comments" class="entry-input feedback-textarea" rows="4" placeholder="Tell us what you liked, what felt rough, or ideas for reading workflows..." required maxlength="2000"></textarea>
+            </div>
+
+            <!-- Optional Context -->
+            <div class="field-cluster" style="margin-top: 1rem;">
+              <label for="feedback-role" class="field-label">Your Name or Role (Optional)</label>
+              <input type="text" id="feedback-role" class="entry-input" placeholder="e.g. Reader, Designer, Developer, Student" autocomplete="off" maxlength="100">
+            </div>
+
+            <div id="feedback-status" class="dialog-feedback hidden" role="status" aria-live="polite"></div>
+          </div>
+
+          <footer class="modal-folio-footer">
+            <button type="button" id="feedback-btn-cancel" class="btn-subtle">Cancel</button>
+            <button type="submit" id="feedback-btn-submit" class="btn-record">Send Feedback</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+
+    <!-- Browser Extension Installation Guide Modal -->
+    <div id="extension-guide-modal" class="modal-scrim hidden" role="dialog" aria-modal="true" aria-labelledby="ext-guide-title">
+      <div class="modal-folio ext-guide-folio">
+        <header class="modal-folio-header">
+          <div>
+            <p class="eyebrow">Reading Companion</p>
+            <h2 id="ext-guide-title" class="modal-title-serif">Install Browser Extension</h2>
+            <p class="modal-source-text">Capture unfamiliar words and sentence citations as you read online.</p>
+          </div>
+          <button type="button" id="ext-guide-close" class="modal-btn-close" aria-label="Close dialog">&times;</button>
+        </header>
+
+        <div class="modal-folio-body">
+          <div class="folio-section">
+            <ol class="editorial-guide-steps">
+              <li>
+                <strong>1. Open Extensions in your Chromium browser:</strong>
+                <p>Navigate to <code>chrome://extensions</code> (or <code>brave://extensions</code> / <code>edge://extensions</code>).</p>
+              </li>
+              <li>
+                <strong>2. Enable Developer Mode:</strong>
+                <p>Toggle the <strong>Developer mode</strong> switch in the top-right corner of the extensions page.</p>
+              </li>
+              <li>
+                <strong>3. Load the Unpacked Extension:</strong>
+                <p>Click <strong>Load unpacked</strong> and select the <code>src/extension</code> directory from this repository.</p>
+              </li>
+              <li>
+                <strong>4. Capture while reading:</strong>
+                <p>Highlight any word on any webpage, right-click, and select <em>"Save word to Wordloom"</em>.</p>
+              </li>
+            </ol>
+          </div>
+        </div>
+
+        <footer class="modal-folio-footer">
+          <a href="https://github.com/bulabasaur123-sketch/vocab-buddy/archive/refs/heads/main.zip" class="btn-subtle" download>Download Repository (.zip)</a>
+          <button type="button" id="ext-guide-done" class="btn-record">Got It</button>
+        </footer>
+      </div>
+    </div>
+
   </div>
 
+  <!-- Floating Feedback Button (Discreet Pill) -->
+  <button type="button" id="btn-floating-feedback" class="btn-floating-feedback hidden" title="Share feedback on Wordloom">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Feedback
+  </button>
+
+  <!-- Application Scripts: Load WebAdapter facade before UI renderer -->
+  <script src="src/services/webAdapter.js"></script>
   <script src="src/ui/connectionsView.js"></script>
   <script src="src/ui/desktop.js"></script>
+  <script src="src/ui/webHub.js"></script>
   <script src="src/renderer.js"></script>
 </body>
 </html>
