@@ -46,7 +46,7 @@ However, sharing the application with peers for qualitative critique and user fe
 - **No heavy framework rewrites:** Do NOT rewrite the frontend in React, Vue, or Next.js. Retain the fast, zero-dependency vanilla JavaScript and semantic HTML5 design system (`DESIGN.md`).
 - **No mandatory authentication walls:** Do NOT force peers to register, sign in, or provide an email before testing the application. First-time web visitors immediately drop into a curated, interactive showcase library.
 - **No invasive tracking or analytics scripts:** Do NOT load Google Analytics, tracking beacons, or third-party behavioral trackers.
-- **No loss of desktop capability:** The web adapter MUST conform exactly to the 28-method interface of `window.vocabAPI` so that not a single line of desktop code is broken or degraded.
+- **No loss of desktop capability:** The web adapter MUST conform exactly to the 27-method interface currently exposed by `window.vocabAPI` in `preload.js` so that not a single line of desktop code is broken or degraded.
 
 ---
 
@@ -80,13 +80,13 @@ In `FEAT-007`, the application runtime detects its hosting environment:
 ```
 
 1. **When running in Electron:** `preload.js` initializes `window.vocabAPI` before DOM scripts execute. `webAdapter.js` detects the existing instance and gracefully stands down.
-2. **When running on the Web (Cloudflare Pages):** `webAdapter.js` executes first, detects that `window.vocabAPI` is missing, and dynamically mounts a full client-side implementation of all 28 API methods on `window.vocabAPI`.
+2. **When running on the Web (Cloudflare Pages):** `webAdapter.js` executes first, detects that `window.vocabAPI` is missing, and dynamically mounts a full client-side implementation of all 27 API methods on `window.vocabAPI`.
 
 ---
 
 ## 3. Data Contracts & Web Adapter Specifications
 
-`src/services/webAdapter.js` must implement all 28 methods exposed in `preload.js`:
+`src/services/webAdapter.js` must implement all 27 methods exposed in `preload.js`. Stage 1 counted this interface as 28, but both the tables below and the existing preload enumerate 27. Stage 2 preserves that exact interface rather than inventing an additional method:
 
 ### 3.1 Vocabulary & Storage Methods
 | Method | Signature | Web Behavior |
@@ -212,7 +212,7 @@ Feature: Web Platform and Peer Feedback Companion (FEAT-007)
 
   Scenario: Web adapter initializes showcase library on first visit
     When the page completes loading
-    Then window.vocabAPI should be defined with all 28 methods
+    Then window.vocabAPI should be defined with all 27 preload methods
     And the Library view should render with 5 showcase starter words
     And the Web Preview banner should be visible
     And no console errors or exceptions should be thrown
@@ -268,10 +268,24 @@ Feature: Web Platform and Peer Feedback Companion (FEAT-007)
 @Codex Stage 2 Backend Implementation for FEAT-007 (Web Platform & Cloudflare Deployment):
 
 Please implement the client-side Web Adapter according to docs/spec/FEAT-007_web_platform_and_landing_spec.md:
-1. Create `src/services/webAdapter.js` providing a full browser-compatible implementation of all 28 methods on `window.vocabAPI` when running outside Electron (`if (typeof window !== 'undefined' && !window.vocabAPI)`).
+1. Create `src/services/webAdapter.js` providing a full browser-compatible implementation of all 27 preload methods on `window.vocabAPI` when running outside Electron (`if (typeof window !== 'undefined' && !window.vocabAPI)`).
 2. Use localStorage/IndexedDB for local-first persistence, pre-seeded with starter showcase words if empty.
 3. Implement direct client-side HTTPS lookups for Dictionary and Wiktionary APIs matching the existing linguistic normalization and lemmatization logic.
 4. Support audio playback via standard HTML5 Audio.
-5. Create comprehensive unit tests in `src/test/webAdapter.test.js` verifying that all 28 methods succeed under a browser mock environment and persist mutations across reloads.
+5. Create comprehensive unit tests in `src/test/webAdapter.test.js` verifying that all 27 preload methods succeed under a browser mock environment and persist mutations across reloads.
 6. Verify gate: `npm test`, `npm run lint`, and `npm run build` must pass with 0 errors. Update status in docs/spec/FEAT-007_web_platform_and_landing_spec.md to `backend_complete`.
 ```
+
+### Stage 2 implementation contract and integration notes (Codex)
+
+- `src/services/webAdapter.js` is a standalone classic browser script without runtime dependencies or Node imports. Stage 3 must load it before `src/renderer.js` (a normal script tag is sufficient). It stands down when `window.vocabAPI` already exists, preserving the Electron backend.
+- The exact 27 preload method names are compared automatically in `src/test/webAdapter.test.js`; every method is exercised. Return contracts follow the working desktop API where the earlier tables differ: `addWord`, `removeWord` and `reviewWord` return the updated word array; `saveWords` and `importData` return `true`; `getAllTags` returns `{tag, count}[]`; association operations retain the desktop `{success, association?}` shape. Stats use `{total, due, mastered, learning}`.
+- Browser persistence uses one `localStorage` key, `wordloom_words`, containing `{version: 1, words, collections, associations, quizHistory}`. Tags, favorites and collection memberships live on each word. Keeping related data in a single record makes a failed/quota-limited write leave the old library intact. An absent key seeds five showcase entries; a deliberately saved empty library stays empty across reloads. Malformed/unsupported records fail without overwriting stored bytes.
+- Each operation reads fresh state. On browsers providing `navigator.locks`, operations take the `wordloom-library` lock across tabs. Without Web Locks, individual operations are synchronous but simultaneous tabs have last-writer-wins semantics; single-tab persistence remains supported. Browser storage clearing/eviction removes local data, so reviewers should export backups for long-term retention.
+- `exportData` returns the full versioned browser library object for the renderer's existing JSON-download handler, without initiating another download. `importData` accepts that object or a legacy plain word array (which has no separate shelf/association/history definitions); dangling collection references are rejected. Export/import validates unique IDs/headwords, models and relationships before replacement. Word deletion removes its memberships/tags, associations and quiz-history entries; shelves remain available for other words.
+- Direct dictionary/Wiktionary requests use HTTPS, encoded headwords, omitted credentials, 10-second request deadlines, and parallel provider requests. Only the headword goes to providers; the book source stays local. Wiktionary uses anonymous CORS `origin=*` per [MediaWiki's cross-site request contract](https://www.mediawiki.org/wiki/API:Cross-site_requests). Inert native DOM parsing scopes results to English, supports modern heading wrappers, strips executable/reference content, and reproduces desktop etymology, meanings, IPA, audio preferences and bounded lemma resolution. Suffix guesses require successful root lookups; cycles stop after at most five distinct heads.
+- The review state machine matches all desktop Leitner box/rating transitions. Quiz shapes, unique distractors, word-boundary cloze, scope intersections and optional SRS linking match desktop behavior. Browser quiz outcomes additionally persist in `quizHistory`.
+- `getAudioDataUrl` supplies a direct validated HTTPS audio URL (or `null`) to the existing renderer's `new Audio(url).play()` path. `ensurePronunciation` verifies readiness with standard HTML5 Audio events and a 10-second media deadline, tries provider alternatives, and persists only the matching word's audio URL. This does not create a filesystem cache or promise offline pronunciation. Deleted words are never resurrected by late audio results. Stage 3 CSP must allow the chosen HTTPS media hosts; dictionary/wiki endpoints must be permitted in `connect-src`.
+- Stage 3 owns script mounting, feedback UI/transport, welcome/reset UI, responsive integration, extension guide and Cloudflare configuration. This Stage 2 change does not publish a site or implement a feedback server.
+
+Validation: `npm test` **101/101 passed** (15 adapter tests plus all 86 existing tests), `npm run lint` and `npm run build` **exit 0**. Explicit `node --check` passed for both new files (the existing npm scripts only syntax-check their first entry point). A headless Chromium smoke check also passed using native DOMParser, a mocked provider response, native Web Locks, first-use seeding and mutation persistence across navigation/reload. Provider network behavior is unit-mocked; live API availability and Stage 3 UI integration are not asserted by this gate.
