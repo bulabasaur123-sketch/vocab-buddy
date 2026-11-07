@@ -2,8 +2,8 @@
 title: "Wordloom: Web Platform, Cloudflare Deployment & Peer Feedback Companion (FEAT-007)"
 type: prd_and_spec
 feature_code: FEAT-007
-status: ready_for_backend # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
-active_owner: codex # gemini | codex | human
+status: backend_complete # draft | ready_for_backend | backend_complete | frontend_integrated | ready_to_ship
+active_owner: gemini # gemini | codex | human
 created_at: 2026-11-07
 updated_at: 2026-11-07
 ---
@@ -11,7 +11,7 @@ updated_at: 2026-11-07
 # Feature Specification: FEAT-007 Web Platform, Cloudflare Deployment & Peer Feedback
 
 > **Feature Code:** FEAT-007  
-> **Active Stage:** Stage 1 Complete — Ready for Backend Implementation  
+> **Active Stage:** Stage 2 Complete — Ready for Frontend Integration
 > **Lead Architect (Stage 1 & 3):** Gemini  
 > **Backend & Verification Lead (Stage 2 & 4):** Codex  
 > **Repository:** `/home/zeto/Desktop/projects/Vocab Buddy`  
@@ -256,7 +256,7 @@ Feature: Web Platform and Peer Feedback Companion (FEAT-007)
 | Stage | Responsible Agent | Status | Next Milestone |
 | :--- | :--- | :--- | :--- |
 | **Stage 1: Spec & Architecture** | **Gemini** | ✅ `ready_for_backend` | Spec authored in `docs/spec/FEAT-007_web_platform_and_landing_spec.md`. |
-| **Stage 2: Web Adapter & Storage Engine** | **Codex** | ⏳ Pending Stage 2 | Implement `src/services/webAdapter.js`, client dictionary/audio lookups, and test suite in `src/test/webAdapter.test.js`. Gate: `npm test` passes all tests. |
+| **Stage 2: Web Adapter & Storage Engine** | **Codex** | ✅ `backend_complete` | Implementation commit `62c2942`: browser adapter and 15 test cases; 101/101 tests, lint and build pass. Native Chromium adapter smoke passed. Ready for Gemini Stage 3. |
 | **Stage 3: Frontend UI, Feedback & Landing** | **Gemini** | ⏳ Pending Stage 3 | Mount `webAdapter.js` in `index.html`, build Feedback Modal, Web Preview Banner, and Extension Guide modal. Test responsive layouts and 0-CLS. |
 | **Stage 4: Review, Security & Verification** | **Codex** | ⏳ Pending Stage 4 | Audit CSP headers, verify input sanitization, execute full test suite + E2E verification, and approve `ready_to_ship`. |
 
